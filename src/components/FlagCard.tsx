@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   Clock, 
   AlertTriangle, 
@@ -45,6 +45,7 @@ const FlagCard: React.FC<FlagCardProps> = ({
   onComment
 }) => {
   const [showHistory, setShowHistory] = useState(false);
+  const clipTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Get severity configuration
   const getSeverityConfig = (severity: 'low' | 'medium' | 'high') => {
@@ -106,15 +107,22 @@ const FlagCard: React.FC<FlagCardProps> = ({
 
   // Handle audio clip playback - only play the flagged segment
   const handlePlayClip = () => {
-    if (audioRef.current) {
-      audioRef.current.currentTime = clipRange.start;
-      audioRef.current.play();
-      setTimeout(() => {
-        if (audioRef.current) {
-          audioRef.current.pause();
-        }
-      }, (clipRange.end - clipRange.start) * 1000);
+    // Clear any existing timeout to prevent immediate pausing
+    if (clipTimeoutRef.current) {
+      clearTimeout(clipTimeoutRef.current);
+      clipTimeoutRef.current = null;
     }
+
+    if (!audioRef.current) return;
+
+    audioRef.current.currentTime = clipRange.start;
+    audioRef.current.play();
+
+    // Set new timeout to pause at the end of the clip
+    clipTimeoutRef.current = setTimeout(() => {
+      audioRef.current?.pause();
+      clipTimeoutRef.current = null;
+    }, (clipRange.end - clipRange.start) * 1000);
   };
 
   // Highlight flagged phrase in snippet
