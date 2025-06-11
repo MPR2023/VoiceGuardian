@@ -22,6 +22,7 @@ function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStep, setProcessingStep] = useState('');
+  const [processingError, setProcessingError] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
 
   const { audioFiles, selectedFile, selectFile } = useAudioStore();
@@ -48,22 +49,24 @@ function App() {
     if (!selectedFile) {
       setWaveformData(null);
       setFlaggedTimestamps([]);
+      setProcessingError(null);
       return;
     }
 
     const processFile = async () => {
       setIsProcessing(true);
+      setProcessingError(null);
       setProcessingStep('Generating waveform...');
       
       try {
         // 1️⃣ Generate waveform
-        console.log('🎵 Starting waveform generation...');
+        console.log('🎵 Starting waveform generation for file:', selectedFile.name);
         const waveform = await processAudioFile(selectedFile.blob);
         setWaveformData(waveform);
         console.log('✅ Waveform generated:', { duration: waveform.duration, peaks: waveform.peaks.length });
 
         // 2️⃣ Transcribe audio
-        setProcessingStep('Transcribing audio...');
+        setProcessingStep('Transcribing audio with AI...');
         console.log('🎤 Starting transcription...');
         const transcriptionResult = await transcribeAudio(selectedFile.blob);
         console.log('✅ Transcription complete:', { 
@@ -71,8 +74,13 @@ function App() {
           wordCount: transcriptionResult.words.length 
         });
 
+        // Check if we got meaningful transcription
+        if (!transcriptionResult.text || transcriptionResult.text.trim().length < 3) {
+          throw new Error('No speech detected in audio file. Please ensure the audio contains clear speech.');
+        }
+
         // 3️⃣ Moderate transcript
-        setProcessingStep('Analyzing content...');
+        setProcessingStep('Analyzing content for inappropriate material...');
         console.log('🛡️ Starting moderation...');
         const flaggedWords = await moderateTranscript(transcriptionResult.text, transcriptionResult.words);
         console.log('✅ Moderation complete:', { flaggedCount: flaggedWords.length, flaggedWords });
@@ -100,7 +108,7 @@ function App() {
             label: fw.word,
             flaggedPhrase: fw.word,
             description: (fw as any).context || snippet,
-            snippet: extendedSnippet,
+            snippet: extendedSnippet || transcriptionResult.text.substring(0, 100),
             confidence: Math.round(((fw as any).score || 0.8) * 100) / 100,
             severity: fw.label === 'toxic' || fw.label === 'hate' ? 'critical' :
                      fw.label === 'warning' || fw.label === 'profanity' ? 'warning' :
@@ -115,15 +123,23 @@ function App() {
           } as FlaggedTimestamp;
         });
 
-        console.log('✅ Mapped flags:', flags);
+        console.log('✅ Processing complete! Mapped', flags.length, 'flags');
         setFlaggedTimestamps(flags);
         setCurrentTime(0);
         setIsPlaying(false);
+        
+        // Show success message
+        if (flags.length > 0) {
+          console.log(`🎯 Analysis complete: Found ${flags.length} flagged content items`);
+        } else {
+          console.log('✅ Analysis complete: No inappropriate content detected');
+        }
+        
       } catch (error) {
         console.error('❌ Error processing audio file:', error);
         
-        // Show user-friendly error message
-        alert(`Failed to process audio file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+        setProcessingError(errorMessage);
         
         // On error, clear flags but keep waveform if it was generated
         setFlaggedTimestamps([]);
@@ -208,6 +224,7 @@ function App() {
       case 'analysis':
         return (
           <div className="space-y-4 md:space-y-6">
+            {/* Processing Status */}
             {isProcessing && (
               <div className="bg-blue-50 rounded-xl shadow-lg p-4 md:p-6 border border-blue-200">
                 <div className="flex items-center space-x-3">
@@ -219,6 +236,23 @@ function App() {
                 </div>
               </div>
             )}
+
+            {/* Processing Error */}
+            {processingError && (
+              <div className="bg-red-50 rounded-xl shadow-lg p-4 md:p-6 border border-red-200">
+                <div className="flex items-center space-x-3">
+                  <div className="text-red-600">⚠️</div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-red-900">Processing Failed</h3>
+                    <p className="text-red-700">{processingError}</p>
+                    <p className="text-red-600 text-sm mt-2">
+                      Try uploading a different audio file or check your internet connection.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <WaveformViewer
               waveformData={waveformData}
               audioUrl={selectedFile?.url || ''}

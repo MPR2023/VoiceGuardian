@@ -14,32 +14,45 @@ export interface TranscriptionResult {
 let transcriber: any = null;
 
 export async function transcribeAudio(blob: Blob): Promise<TranscriptionResult> {
+  console.log('🎤 Starting transcription with blob size:', blob.size);
+  
   try {
     // Lazy-load the pipeline if not already loaded
     if (!transcriber) {
+      console.log('📥 Loading Whisper model...');
       try {
-        transcriber = await pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny.en');
+        transcriber = await pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny.en', {
+          dtype: 'fp32',
+          device: 'cpu'
+        });
+        console.log('✅ Whisper model loaded successfully');
       } catch (modelError) {
-        console.error('Model loading failed:', modelError);
-        throw new Error('Model loading failed. Please check your internet connection, or try reloading the page. If the problem persists, try our deployed site or contact support.');
+        console.error('❌ Model loading failed:', modelError);
+        throw new Error('Failed to load AI transcription model. Please check your internet connection and try again.');
       }
     }
 
     // Convert blob to array buffer for processing
+    console.log('🔄 Converting audio blob to array buffer...');
     const arrayBuffer = await blob.arrayBuffer();
+    console.log('✅ Audio converted, size:', arrayBuffer.byteLength);
     
     // Run transcription with word-level timestamps
+    console.log('🎯 Running transcription...');
     const result = await transcriber(arrayBuffer, {
       return_timestamps: 'word',
       chunk_length_s: 30,
       stride_length_s: 5,
     });
 
+    console.log('🎤 Raw transcription result:', result);
+
     // Extract text and word-level timestamps
     const text = result.text || '';
     const words: TranscriptionWord[] = [];
 
     if (result.chunks && Array.isArray(result.chunks)) {
+      console.log('📝 Processing', result.chunks.length, 'chunks');
       for (const chunk of result.chunks) {
         if (chunk.timestamp && Array.isArray(chunk.timestamp) && chunk.timestamp.length === 2) {
           words.push({
@@ -51,20 +64,22 @@ export async function transcribeAudio(blob: Blob): Promise<TranscriptionResult> 
       }
     }
 
+    console.log('✅ Transcription complete:', { text: text.substring(0, 100) + '...', wordCount: words.length });
+
     return {
       words,
       text
     };
   } catch (error) {
-    console.error('Transcription error:', error);
+    console.error('❌ Transcription error:', error);
     
     // If it's already our custom error message, re-throw it
-    if (error instanceof Error && error.message.includes('Model loading failed')) {
+    if (error instanceof Error && error.message.includes('Failed to load AI transcription model')) {
       throw error;
     }
     
     // For other errors, provide a generic message
-    throw new Error('Failed to transcribe audio. Please try again.');
+    throw new Error(`Transcription failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
