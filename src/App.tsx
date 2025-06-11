@@ -139,16 +139,10 @@ function App() {
         }
         
       } catch (error) {
-        console.error('❌ Error processing audio file:', error);
-        
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-        setProcessingError(errorMessage);
-        
-        // Show error alert to user
-        alert('Audio analysis failed: ' + errorMessage);
-        
-        // On error, clear flags but keep waveform if it was generated
-        setFlaggedTimestamps([]);
+        // Log the full failure
+        console.error('🔥 Full processing error:', error);
+        // Re-throw it so we get the real stack in DevTools
+        throw error;
       } finally {
         setIsProcessing(false);
         setProcessingStep('');
