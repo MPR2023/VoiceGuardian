@@ -128,6 +128,9 @@ function App() {
         setCurrentTime(0);
         setIsPlaying(false);
         
+        // Navigate to Analysis view automatically after processing completes
+        setActiveTab('analysis');
+        
         // Show success message
         if (flags.length > 0) {
           console.log(`🎯 Analysis complete: Found ${flags.length} flagged content items`);
@@ -140,6 +143,9 @@ function App() {
         
         const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
         setProcessingError(errorMessage);
+        
+        // Show error alert to user
+        alert('Audio analysis failed: ' + errorMessage);
         
         // On error, clear flags but keep waveform if it was generated
         setFlaggedTimestamps([]);
