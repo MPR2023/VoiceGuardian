@@ -117,8 +117,8 @@ const FlaggedTimestamps: React.FC<FlaggedTimestampsProps> = ({
                 history={flag.history}
                 audioRef={audioRef}
                 clipRange={{ 
-                  start: flag.startTime / 1000, 
-                  end: flag.endTime / 1000 
+                  start: (flag.startTime || 0) / 1000,  // convert ms→sec
+                  end: (flag.endTime || 0) / 1000       // convert ms→sec
                 }}
                 onResolve={() => handleResolve(flag.id)}
                 onEscalate={() => handleEscalate(flag.id)}
