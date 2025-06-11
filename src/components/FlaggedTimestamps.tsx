@@ -88,23 +88,25 @@ const FlaggedTimestamps: React.FC<FlaggedTimestampsProps> = ({
     );
   }
 
-  // If we have enhanced flag data and audioRef, use FlagCard
-  if (showAll && audioRef && displayFlags.some(flag => flag.category && flag.snippet)) {
+  // Always render FlagCard when audioRef is present and flags have enhanced data
+  if (audioRef && displayFlags.some(flag => flag.category && flag.snippet)) {
     return (
       <div className="space-y-4 md:space-y-6">
-        <div className="bg-white rounded-xl shadow-lg p-4 md:p-6 border-b border-gray-200">
-          <div className="flex items-center justify-between">
-            <h3 className="text-base md:text-lg font-semibold text-gray-900">
-              All Flagged Content ({flags.length} total)
-            </h3>
+        {showAll && (
+          <div className="bg-white rounded-xl shadow-lg p-4 md:p-6 border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base md:text-lg font-semibold text-gray-900">
+                All Flagged Content ({flags.length} total)
+              </h3>
+            </div>
           </div>
-        </div>
+        )}
 
         {displayFlags.map((flag) => {
           // Log flag values before rendering
           console.log('▶ Flag clipRange:', flag.id, (flag.startTime || 0) / 1000, (flag.endTime || 0) / 1000, 'audioRef:', audioRef.current);
           
-          // Only render FlagCard if we have the required enhanced data
+          // Always render FlagCard if we have the required enhanced data
           if (flag.category && flag.snippet && flag.startTime !== undefined && flag.endTime !== undefined) {
             return (
               <FlagCard
@@ -187,11 +189,23 @@ const FlaggedTimestamps: React.FC<FlaggedTimestampsProps> = ({
             </div>
           );
         })}
+
+        {/* Show "View All" button only in non-showAll view */}
+        {!showAll && flags.length > 5 && onViewAll && (
+          <div className="text-center">
+            <button 
+              onClick={onViewAll}
+              className="text-blue-600 hover:text-blue-700 text-sm font-medium min-h-[44px] px-4 py-2 rounded-lg hover:bg-blue-50 transition-colors"
+            >
+              View All ({flags.length - 5} more)
+            </button>
+          </div>
+        )}
       </div>
     );
   }
 
-  // Original design for non-showAll view or when enhanced data is not available
+  // Original design for when audioRef is not available or enhanced data is missing
   return (
     <div className="bg-white rounded-xl shadow-lg overflow-hidden">
       <div className="p-4 md:p-6 border-b border-gray-200">
