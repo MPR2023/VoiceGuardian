@@ -1,11 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
   Clock, 
   AlertTriangle, 
   Info, 
   Eye, 
   Play, 
-  Pause, 
   MessageSquare, 
   CheckCircle, 
   ArrowUp, 
@@ -45,7 +44,6 @@ const FlagCard: React.FC<FlagCardProps> = ({
   onEscalate,
   onComment
 }) => {
-  const [isPlaying, setIsPlaying] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
 
   // Get severity configuration
@@ -106,7 +104,7 @@ const FlagCard: React.FC<FlagCardProps> = ({
   const categoryConfig = getCategoryConfig(category);
   const SeverityIcon = severityConfig.icon;
 
-  // Handle audio clip playback with precise range control
+  // Handle audio clip playback - only play the flagged segment
   const handlePlayClip = () => {
     if (audioRef.current) {
       audioRef.current.currentTime = clipRange.start;
@@ -137,6 +135,9 @@ const FlagCard: React.FC<FlagCardProps> = ({
       return part;
     });
   };
+
+  // Calculate clip duration in seconds
+  const clipDuration = Math.round(clipRange.end - clipRange.start);
 
   return (
     <div className={`bg-white rounded-xl shadow-lg border-l-4 ${severityConfig.borderColor} overflow-hidden transition-all duration-200 hover:shadow-xl`}>
@@ -185,12 +186,8 @@ const FlagCard: React.FC<FlagCardProps> = ({
               className="flex items-center space-x-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors min-h-[44px] text-sm"
             >
               <Play className="h-4 w-4" />
-              <span>Play Clip</span>
+              <span>{clipDuration}s clip</span>
             </button>
-            
-            <div className="text-xs text-gray-500 hidden sm:block">
-              {Math.round(clipRange.end - clipRange.start)}s clip
-            </div>
           </div>
         </div>
 
@@ -235,7 +232,10 @@ const FlagCard: React.FC<FlagCardProps> = ({
         {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row gap-3">
           <button
-            onClick={onResolve}
+            onClick={() => {
+              console.log('Resolved', timestamp);
+              onResolve();
+            }}
             className="flex items-center justify-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors min-h-[44px] text-sm font-medium"
           >
             <CheckCircle className="h-4 w-4" />
@@ -243,7 +243,10 @@ const FlagCard: React.FC<FlagCardProps> = ({
           </button>
           
           <button
-            onClick={onEscalate}
+            onClick={() => {
+              console.log('Escalated', timestamp);
+              onEscalate();
+            }}
             className="flex items-center justify-center space-x-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors min-h-[44px] text-sm font-medium"
           >
             <ArrowUp className="h-4 w-4" />
@@ -251,7 +254,10 @@ const FlagCard: React.FC<FlagCardProps> = ({
           </button>
           
           <button
-            onClick={onComment}
+            onClick={() => {
+              console.log('Comment', timestamp);
+              onComment();
+            }}
             className="flex items-center justify-center space-x-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors min-h-[44px] text-sm font-medium"
           >
             <MessageSquare className="h-4 w-4" />
