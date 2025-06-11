@@ -8,7 +8,9 @@ import Dashboard from './components/Dashboard';
 import AudioFiles from './components/AudioFiles';
 import Settings from './components/Settings';
 import { FlaggedTimestamp, WaveformData } from './types';
-import { processAudioFile, generateMockFlags } from './utils/audioProcessing';
+import { processAudioFile } from './utils/audioProcessing';
+import { transcribeAudio } from './lib/transcribe';
+import { moderateTranscript } from './lib/moderate';
 import { useAudioStore } from './store/useAudioStore';
 
 function App() {
@@ -18,6 +20,7 @@ function App() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
 
   const { audioFiles, selectedFile, selectFile } = useAudioStore();
@@ -48,16 +51,69 @@ function App() {
     }
 
     const processFile = async () => {
+      setIsProcessing(true);
       try {
+        // 1️⃣ Generate waveform
         const waveform = await processAudioFile(selectedFile.blob);
-        const flags = generateMockFlags(waveform.duration);
-        
         setWaveformData(waveform);
+
+        // 2️⃣ Transcribe audio
+        console.log('Starting transcription...');
+        const { text, words } = await transcribeAudio(selectedFile.blob);
+        console.log('Transcription complete:', { text, wordCount: words.length });
+
+        // 3️⃣ Moderate transcript
+        console.log('Starting moderation...');
+        const flaggedWords = await moderateTranscript(text, words);
+        console.log('Moderation complete:', { flaggedCount: flaggedWords.length });
+
+        // 4️⃣ Map into FlaggedTimestamp shape
+        const flags = flaggedWords.map((fw, idx) => {
+          // Create context snippet around the flagged word
+          const wordIndex = text.toLowerCase().indexOf(fw.word.toLowerCase());
+          const contextStart = Math.max(0, wordIndex - 30);
+          const contextEnd = Math.min(text.length, wordIndex + fw.word.length + 30);
+          const snippet = text.substring(contextStart, contextEnd).trim();
+          
+          // Create a longer snippet for better context
+          const extendedSnippet = text.substring(
+            Math.max(0, wordIndex - 30), 
+            Math.min(text.length, wordIndex + fw.word.length + 60)
+          ).trim();
+
+          return {
+            id: `flag-${idx}`,
+            timestamp: fw.start,
+            startTime: fw.start,
+            endTime: fw.end,
+            label: fw.word,
+            flaggedPhrase: fw.word,
+            description: (fw as any).context || snippet,
+            snippet: extendedSnippet,
+            confidence: Math.round(((fw as any).score || 0.8) * 100) / 100,
+            severity: fw.label === 'toxic' || fw.label === 'hate' ? 'critical' :
+                     fw.label === 'warning' || fw.label === 'profanity' ? 'warning' :
+                     'info',
+            category: fw.label === 'profanity' ? 'Profanity' :
+                     fw.label === 'warning' ? 'Quality' :
+                     fw.label === 'hate' ? 'Compliance' :
+                     'Quality',
+            speaker: undefined,
+            policyLink: undefined,
+            history: [],
+          } as FlaggedTimestamp;
+        });
+
+        console.log('Mapped flags:', flags);
         setFlaggedTimestamps(flags);
         setCurrentTime(0);
         setIsPlaying(false);
       } catch (error) {
         console.error('Error processing audio file:', error);
+        // On error, clear flags but keep waveform if it was generated
+        setFlaggedTimestamps([]);
+      } finally {
+        setIsProcessing(false);
       }
     };
 
@@ -136,6 +192,17 @@ function App() {
       case 'analysis':
         return (
           <div className="space-y-4 md:space-y-6">
+            {isProcessing && (
+              <div className="bg-blue-50 rounded-xl shadow-lg p-4 md:p-6 border border-blue-200">
+                <div className="flex items-center space-x-3">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-blue-900">Processing Audio</h3>
+                    <p className="text-blue-700">Transcribing and analyzing content...</p>
+                  </div>
+                </div>
+              </div>
+            )}
             <WaveformViewer
               waveformData={waveformData}
               audioUrl={selectedFile?.url || ''}
