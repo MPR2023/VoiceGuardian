@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Clock, 
   AlertTriangle, 
@@ -109,7 +109,21 @@ const FlagCard: React.FC<FlagCardProps> = ({
   const categoryConfig = getCategoryConfig(category);
   const SeverityIcon = severityConfig.icon;
 
-  // Handle audio clip playback
+  // Clean up event listeners when component unmounts or audio changes
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        // Remove any lingering event listeners
+        const audio = audioRef.current;
+        const events = ['timeupdate', 'pause', 'ended', 'loadedmetadata'];
+        events.forEach(event => {
+          audio.removeEventListener(event, () => {});
+        });
+      }
+    };
+  }, [audioRef]);
+
+  // Handle audio clip playback with precise range control
   const handlePlayClip = () => {
     if (!audioRef.current) return;
 
@@ -118,35 +132,65 @@ const FlagCard: React.FC<FlagCardProps> = ({
     if (isPlaying) {
       audio.pause();
       setIsPlaying(false);
-    } else {
-      // Set audio to start position
-      audio.currentTime = clipRange.start;
-      
-      // Play the clip
-      audio.play();
-      setIsPlaying(true);
-
-      // Stop at end position
-      const handleTimeUpdate = () => {
-        if (audio.currentTime >= clipRange.end) {
-          audio.pause();
-          setIsPlaying(false);
-          audio.removeEventListener('timeupdate', handleTimeUpdate);
-        }
-      };
-
-      audio.addEventListener('timeupdate', handleTimeUpdate);
-
-      // Handle natural pause/end
-      const handlePause = () => {
-        setIsPlaying(false);
-        audio.removeEventListener('pause', handlePause);
-        audio.removeEventListener('ended', handlePause);
-      };
-
-      audio.addEventListener('pause', handlePause);
-      audio.addEventListener('ended', handlePause);
+      return;
     }
+
+    // Ensure audio is loaded
+    if (audio.readyState < 2) {
+      const handleLoadedData = () => {
+        startClipPlayback();
+        audio.removeEventListener('loadeddata', handleLoadedData);
+      };
+      audio.addEventListener('loadeddata', handleLoadedData);
+      audio.load();
+      return;
+    }
+
+    startClipPlayback();
+  };
+
+  const startClipPlayback = () => {
+    if (!audioRef.current) return;
+
+    const audio = audioRef.current;
+    
+    // Set audio to start position
+    audio.currentTime = clipRange.start;
+    setIsPlaying(true);
+
+    // Create a precise time update handler for this specific clip
+    const handleTimeUpdate = () => {
+      if (audio.currentTime >= clipRange.end) {
+        audio.pause();
+        setIsPlaying(false);
+        // Clean up this specific listener
+        audio.removeEventListener('timeupdate', handleTimeUpdate);
+      }
+    };
+
+    // Handle pause/end events
+    const handlePlaybackEnd = () => {
+      setIsPlaying(false);
+      // Clean up listeners
+      audio.removeEventListener('timeupdate', handleTimeUpdate);
+      audio.removeEventListener('pause', handlePlaybackEnd);
+      audio.removeEventListener('ended', handlePlaybackEnd);
+    };
+
+    // Add event listeners
+    audio.addEventListener('timeupdate', handleTimeUpdate);
+    audio.addEventListener('pause', handlePlaybackEnd);
+    audio.addEventListener('ended', handlePlaybackEnd);
+
+    // Start playback
+    audio.play().catch((error) => {
+      console.error('Error playing audio clip:', error);
+      setIsPlaying(false);
+      // Clean up listeners on error
+      audio.removeEventListener('timeupdate', handleTimeUpdate);
+      audio.removeEventListener('pause', handlePlaybackEnd);
+      audio.removeEventListener('ended', handlePlaybackEnd);
+    });
   };
 
   // Highlight flagged phrase in snippet
