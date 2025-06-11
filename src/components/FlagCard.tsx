@@ -107,6 +107,8 @@ const FlagCard: React.FC<FlagCardProps> = ({
 
   // Handle audio clip playback - only play the flagged segment
   const handlePlayClip = () => {
+    console.log('▶️ PlayClip called, clipRange:', clipRange);
+    
     // Clear any existing timeout to prevent immediate pausing
     if (clipTimeoutRef.current) {
       clearTimeout(clipTimeoutRef.current);
@@ -116,6 +118,8 @@ const FlagCard: React.FC<FlagCardProps> = ({
     if (!audioRef.current) return;
 
     audioRef.current.currentTime = clipRange.start;
+    console.log('  → audio.currentTime now', audioRef.current.currentTime);
+    
     audioRef.current.play();
 
     // Set new timeout to pause at the end of the clip
