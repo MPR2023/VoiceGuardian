@@ -72,15 +72,8 @@ export async function transcribeAudio(blob: Blob): Promise<TranscriptionResult> 
       text
     };
   } catch (error) {
-    console.error('❌ Transcription error:', error);
-    
-    // If it's already our custom error message, re-throw it
-    if (error instanceof Error && error.message.includes('Failed to load AI transcription model')) {
-      throw error;
-    }
-    
-    // For other errors, provide a generic message
-    throw new Error(`Transcription failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    console.error('❌ Full transcription error:', error);
+    throw error;  // bubble up the real failure
   }
 }
 
