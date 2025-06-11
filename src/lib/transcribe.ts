@@ -22,6 +22,7 @@ export async function transcribeAudio(blob: Blob): Promise<TranscriptionResult> 
       console.log('📥 Loading Whisper model...');
       try {
         transcriber = await pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny.en', {
+          trust_remote_code: true,   // allow loading custom code if needed
           dtype: 'fp32',
           device: 'cpu'
         });
