@@ -67,15 +67,24 @@ export async function moderateTranscript(
   transcriptOrWords: string | { start: number; end: number; word: string; }[],
   wordTimestamps?: { word: string; start: number; end: number }[]
 ): Promise<FlaggedWord[] | { word: string; start: number; end: number; label: string }[]> {
+  console.log('🛡️ Starting moderation with:', { 
+    type: typeof transcriptOrWords, 
+    isArray: Array.isArray(transcriptOrWords),
+    wordTimestampsLength: wordTimestamps?.length 
+  });
+
   try {
     // Handle legacy call format (array of words)
     if (Array.isArray(transcriptOrWords)) {
       const words = transcriptOrWords;
+      console.log('📝 Processing legacy format with', words.length, 'words');
       
       // Try AI moderation first
       try {
         if (!moderationPipeline) {
+          console.log('🤖 Loading AI moderation model...');
           moderationPipeline = await pipeline('text-classification', 'Xenova/distilbert-base-uncased-finetuned-sst-2-english');
+          console.log('✅ AI moderation model loaded');
         }
 
         const flaggedWords: FlaggedWord[] = [];
@@ -135,9 +144,10 @@ export async function moderateTranscript(
           }
         }
 
+        console.log('✅ AI moderation complete, found', flaggedWords.length, 'flags');
         return flaggedWords;
       } catch (aiError) {
-        console.error('AI moderation failed, falling back to keyword-based moderation:', aiError);
+        console.error('❌ AI moderation failed, falling back to keyword-based moderation:', aiError);
         
         // Fallback to keyword-based moderation
         const transcript = words.map(w => w.word).join(' ');
@@ -157,11 +167,14 @@ export async function moderateTranscript(
 
     // Handle new call format (transcript string)
     const transcript = transcriptOrWords as string;
+    console.log('📝 Processing transcript format, length:', transcript.length);
     
     // Try AI moderation first
     try {
       if (!moderationPipeline) {
+        console.log('🤖 Loading AI moderation model...');
         moderationPipeline = await pipeline('text-classification', 'Xenova/distilbert-base-uncased-finetuned-sst-2-english');
+        console.log('✅ AI moderation model loaded');
       }
 
       // For transcript-based moderation, we need to create word objects
@@ -174,6 +187,8 @@ export async function moderateTranscript(
           word: word.trim()
         };
       });
+
+      console.log('📝 Created', wordObjects.length, 'word objects for analysis');
 
       // Use the existing AI moderation logic
       const flaggedWords: { word: string; start: number; end: number; label: string }[] = [];
@@ -230,19 +245,24 @@ export async function moderateTranscript(
         }
       }
 
+      console.log('✅ AI moderation complete, found', flaggedWords.length, 'flags');
       return flaggedWords;
     } catch (aiError) {
-      console.error('AI moderation failed, falling back to keyword-based moderation:', aiError);
+      console.error('❌ AI moderation failed, falling back to keyword-based moderation:', aiError);
       
       // Fallback to keyword-based moderation
-      return moderateWithKeywords(transcript, wordTimestamps);
+      const keywordFlags = moderateWithKeywords(transcript, wordTimestamps);
+      console.log('✅ Keyword moderation complete, found', keywordFlags.length, 'flags');
+      return keywordFlags;
     }
   } catch (error) {
-    console.error('Moderation error:', error);
+    console.error('❌ Moderation error:', error);
     
     // Final fallback - return keyword-based results
     if (typeof transcriptOrWords === 'string') {
-      return moderateWithKeywords(transcriptOrWords, wordTimestamps);
+      const keywordFlags = moderateWithKeywords(transcriptOrWords, wordTimestamps);
+      console.log('✅ Final fallback moderation complete, found', keywordFlags.length, 'flags');
+      return keywordFlags;
     } else {
       const transcript = transcriptOrWords.map(w => w.word).join(' ');
       const keywordFlags = moderateWithKeywords(transcript, transcriptOrWords);
