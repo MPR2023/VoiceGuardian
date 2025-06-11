@@ -75,7 +75,7 @@ export async function moderateTranscript(
       // Try AI moderation first
       try {
         if (!moderationPipeline) {
-          moderationPipeline = await pipeline('text-classification', 'martin-ha/toxic-comment-model');
+          moderationPipeline = await pipeline('text-classification', 'Xenova/distilbert-base-uncased-finetuned-sst-2-english');
         }
 
         const flaggedWords: FlaggedWord[] = [];
@@ -97,29 +97,27 @@ export async function moderateTranscript(
             // Get moderation results
             const results = await moderationPipeline(phrase);
             
-            // Find the highest scoring non-neutral result
+            // Find the highest scoring negative result (NEGATIVE indicates potential toxicity)
             let bestResult = null;
             let highestScore = 0;
 
             for (const result of results) {
-              if (result.label.toLowerCase() !== 'neutral' && 
-                  result.label.toLowerCase() !== 'non-toxic' && 
-                  result.score > highestScore) {
+              if (result.label.toLowerCase() === 'negative' && result.score > highestScore) {
                 bestResult = result;
                 highestScore = result.score;
               }
             }
 
-            // Flag if score > 0.5 and not neutral
-            if (bestResult && bestResult.score > 0.5) {
-              // Map labels to our severity system
-              let mappedLabel = bestResult.label.toLowerCase();
-              if (mappedLabel.includes('toxic') || mappedLabel.includes('hate')) {
+            // Flag if negative score > 0.7 (higher threshold since this is sentiment, not toxicity)
+            if (bestResult && bestResult.score > 0.7) {
+              // Map sentiment labels to our severity system
+              let mappedLabel = 'warning';
+              if (bestResult.score > 0.9) {
                 mappedLabel = 'toxic';
-              } else if (mappedLabel.includes('threat') || mappedLabel.includes('severe')) {
-                mappedLabel = 'hate';
-              } else {
+              } else if (bestResult.score > 0.8) {
                 mappedLabel = 'warning';
+              } else {
+                mappedLabel = 'info';
               }
 
               flaggedWords.push({
@@ -163,7 +161,7 @@ export async function moderateTranscript(
     // Try AI moderation first
     try {
       if (!moderationPipeline) {
-        moderationPipeline = await pipeline('text-classification', 'martin-ha/toxic-comment-model');
+        moderationPipeline = await pipeline('text-classification', 'Xenova/distilbert-base-uncased-finetuned-sst-2-english');
       }
 
       // For transcript-based moderation, we need to create word objects
@@ -196,29 +194,27 @@ export async function moderateTranscript(
           // Get moderation results
           const results = await moderationPipeline(phrase);
           
-          // Find the highest scoring non-neutral result
+          // Find the highest scoring negative result (NEGATIVE indicates potential toxicity)
           let bestResult = null;
           let highestScore = 0;
 
           for (const result of results) {
-            if (result.label.toLowerCase() !== 'neutral' && 
-                result.label.toLowerCase() !== 'non-toxic' && 
-                result.score > highestScore) {
+            if (result.label.toLowerCase() === 'negative' && result.score > highestScore) {
               bestResult = result;
               highestScore = result.score;
             }
           }
 
-          // Flag if score > 0.5 and not neutral
-          if (bestResult && bestResult.score > 0.5) {
-            // Map labels to our severity system
-            let mappedLabel = bestResult.label.toLowerCase();
-            if (mappedLabel.includes('toxic') || mappedLabel.includes('hate')) {
+          // Flag if negative score > 0.7 (higher threshold since this is sentiment, not toxicity)
+          if (bestResult && bestResult.score > 0.7) {
+            // Map sentiment labels to our severity system
+            let mappedLabel = 'warning';
+            if (bestResult.score > 0.9) {
               mappedLabel = 'toxic';
-            } else if (mappedLabel.includes('threat') || mappedLabel.includes('severe')) {
-              mappedLabel = 'hate';
-            } else {
+            } else if (bestResult.score > 0.8) {
               mappedLabel = 'warning';
+            } else {
+              mappedLabel = 'info';
             }
 
             flaggedWords.push({
