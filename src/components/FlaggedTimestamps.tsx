@@ -104,7 +104,7 @@ const FlaggedTimestamps: React.FC<FlaggedTimestampsProps> = ({
 
         {displayFlags.map((flag) => {
           // Log flag values before rendering
-          console.log('▶ Flag clipRange:', flag.id, (flag.startTime || 0) / 1000, (flag.endTime || 0) / 1000, 'audioRef:', audioRef.current);
+          console.log('▶ Flag clipRange (s):', flag.id, flag.startTime, flag.endTime);
           
           // Always render FlagCard if we have the required enhanced data
           if (flag.category && flag.snippet && flag.startTime !== undefined && flag.endTime !== undefined) {
@@ -122,8 +122,8 @@ const FlaggedTimestamps: React.FC<FlaggedTimestampsProps> = ({
                 history={flag.history}
                 audioRef={audioRef}
                 clipRange={{ 
-                  start: (flag.startTime || 0) / 1000,  // convert ms→sec
-                  end: (flag.endTime || 0) / 1000       // convert ms→sec
+                  start: flag.startTime || 0,
+                  end: flag.endTime || 0
                 }}
                 onResolve={() => handleResolve(flag.id)}
                 onEscalate={() => handleEscalate(flag.id)}
