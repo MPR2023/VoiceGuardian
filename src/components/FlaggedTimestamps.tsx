@@ -6,6 +6,7 @@ import { formatTime } from '../utils/audioProcessing';
 interface FlaggedTimestampsProps {
   flags: FlaggedTimestamp[];
   onFlagClick: (timestamp: number) => void;
+  onViewAll?: () => void;
   currentTime: number;
   showAll?: boolean;
 }
@@ -13,6 +14,7 @@ interface FlaggedTimestampsProps {
 const FlaggedTimestamps: React.FC<FlaggedTimestampsProps> = ({
   flags,
   onFlagClick,
+  onViewAll,
   currentTime,
   showAll = false
 }) => {
@@ -74,8 +76,11 @@ const FlaggedTimestamps: React.FC<FlaggedTimestampsProps> = ({
           <h3 className="text-base md:text-lg font-semibold text-gray-900">
             Flagged Content {!showAll && `(${Math.min(5, flags.length)} of ${flags.length})`}
           </h3>
-          {!showAll && flags.length > 5 && (
-            <button className="text-blue-600 hover:text-blue-700 text-sm font-medium min-h-[44px] px-3 py-2 rounded-lg hover:bg-blue-50 transition-colors">
+          {!showAll && flags.length > 5 && onViewAll && (
+            <button 
+              onClick={onViewAll}
+              className="text-blue-600 hover:text-blue-700 text-sm font-medium min-h-[44px] px-3 py-2 rounded-lg hover:bg-blue-50 transition-colors"
+            >
               View All
             </button>
           )}

@@ -114,6 +114,10 @@ function App() {
     handleTimeChange(timestamp);
   }, [handleTimeChange]);
 
+  const handleViewAllFlags = useCallback(() => {
+    setActiveTab('flags');
+  }, []);
+
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard':
@@ -143,6 +147,7 @@ function App() {
             <FlaggedTimestamps
               flags={flaggedTimestamps}
               onFlagClick={handleFlagClick}
+              onViewAll={handleViewAllFlags}
               currentTime={currentTime}
             />
           </div>
