@@ -74,6 +74,14 @@ const FlagCard: React.FC<FlagCardProps> = ({
           textColor: 'text-blue-700',
           icon: Info
         };
+      default:
+        return {
+          color: 'bg-gray-500',
+          bgColor: 'bg-gray-50',
+          borderColor: 'border-gray-200',
+          textColor: 'text-gray-700',
+          icon: Info
+        };
     }
   };
 
@@ -97,6 +105,12 @@ const FlagCard: React.FC<FlagCardProps> = ({
           bgColor: 'bg-blue-100',
           textColor: 'text-blue-800',
           borderColor: 'border-blue-300'
+        };
+      default:
+        return {
+          bgColor: 'bg-gray-100',
+          textColor: 'text-gray-800',
+          borderColor: 'border-gray-300'
         };
     }
   };
