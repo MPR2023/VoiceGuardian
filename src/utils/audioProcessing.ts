@@ -40,6 +40,36 @@ export const formatTime = (seconds: number): string => {
   return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
 };
 
+// Enhanced flag classification with false positive filtering
+const classifyFlag = (category: string, snippet: string, flaggedPhrase: string): { 
+  category: string; 
+  severity: 'critical' | 'warning' | 'info' | 'review';
+  note?: string;
+} => {
+  let finalCategory = category;
+  let severity: 'critical' | 'warning' | 'info' | 'review' = 'warning';
+  let note: string | undefined;
+
+  // Apply profanity false positive filtering
+  if (category === 'Profanity') {
+    // Only label as explicit profanity if transcript actually contains the flagged word
+    if (!snippet.toLowerCase().includes(flaggedPhrase?.toLowerCase() || '')) {
+      finalCategory = 'Info';
+      severity = 'info';
+      note = 'Model signaled toxicity but no explicit word found in transcript.';
+    } else {
+      // Confirmed profanity - set appropriate severity
+      severity = 'critical';
+    }
+  } else if (category === 'Compliance') {
+    severity = 'warning';
+  } else if (category === 'Quality') {
+    severity = 'info';
+  }
+
+  return { category: finalCategory, severity, note };
+};
+
 export const generateMockFlags = (duration: number): FlaggedTimestamp[] => {
   const flags: FlaggedTimestamp[] = [];
   const severities: ('critical' | 'warning' | 'info' | 'review')[] = ['critical', 'warning', 'info', 'review'];
@@ -63,7 +93,11 @@ export const generateMockFlags = (duration: number): FlaggedTimestamp[] => {
     "I can definitely help you with that request. Let me pull up your account information and review the details.",
     "Based on our conversation today, I'll be escalating this to our technical support team for further assistance.",
     "I want to make sure we resolve this issue completely. Is there anything else I can help you with today?",
-    "Your feedback is important to us. I'll make sure to document this for our quality assurance team."
+    "Your feedback is important to us. I'll make sure to document this for our quality assurance team.",
+    "That's really frustrating and I understand why you're upset about this situation.",
+    "This damn system keeps giving me errors when I try to process your request.",
+    "I apologize for the inconvenience, but our policy clearly states the terms for returns.",
+    "Let me check with my supervisor about making an exception to our standard policy."
   ];
 
   const speakers = [
@@ -86,28 +120,42 @@ export const generateMockFlags = (duration: number): FlaggedTimestamp[] => {
   
   for (let i = 0; i < numFlags; i++) {
     const timestamp = Math.random() * duration;
-    const category = categories[Math.floor(Math.random() * categories.length)];
-    const severity = severities[Math.floor(Math.random() * severities.length)];
+    const initialCategory = categories[Math.floor(Math.random() * categories.length)];
     const snippet = snippets[Math.floor(Math.random() * snippets.length)];
     
     // Generate flagged phrase based on category
     let flaggedPhrase = '';
-    if (category === 'Profanity') {
-      const profanityWords = ['damn', 'hell', 'crap', 'stupid'];
+    if (initialCategory === 'Profanity') {
+      const profanityWords = ['damn', 'hell', 'crap', 'stupid', 'frustrating', 'upset'];
       flaggedPhrase = profanityWords[Math.floor(Math.random() * profanityWords.length)];
-    } else if (category === 'Compliance') {
-      const complianceWords = ['personal information', 'account details', 'policy'];
+    } else if (initialCategory === 'Compliance') {
+      const complianceWords = ['personal information', 'account details', 'policy', 'exception'];
       flaggedPhrase = complianceWords[Math.floor(Math.random() * complianceWords.length)];
     } else {
-      const qualityWords = ['issue', 'problem', 'frustration', 'sorry'];
+      const qualityWords = ['issue', 'problem', 'frustration', 'sorry', 'inconvenience'];
       flaggedPhrase = qualityWords[Math.floor(Math.random() * qualityWords.length)];
+    }
+
+    // Apply classification with false positive filtering
+    const classification = classifyFlag(initialCategory, snippet, flaggedPhrase);
+
+    // Generate appropriate label based on final classification
+    let label = labels[Math.floor(Math.random() * labels.length)];
+    if (classification.category === 'Info' && classification.note) {
+      label = 'Potential content issue';
+    } else if (classification.category === 'Profanity') {
+      label = 'Profanity detected';
+    } else if (classification.category === 'Compliance') {
+      label = 'Compliance violation';
+    } else if (classification.category === 'Quality') {
+      label = 'Quality issue';
     }
 
     // Generate review history for some flags
     const history = Math.random() > 0.7 ? [
       {
         reviewer: "QA Manager: Tom Wilson",
-        note: "Initial review completed. Flagged for supervisor attention.",
+        note: classification.note || "Initial review completed. Flagged for supervisor attention.",
         date: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000).toLocaleDateString()
       }
     ] : [];
@@ -115,11 +163,11 @@ export const generateMockFlags = (duration: number): FlaggedTimestamp[] => {
     flags.push({
       id: `flag-${i}`,
       timestamp,
-      label: labels[Math.floor(Math.random() * labels.length)],
-      severity,
-      description: 'Automated analysis detected potential issue requiring review.',
+      label,
+      severity: classification.severity,
+      description: classification.note || 'Automated analysis detected potential issue requiring review.',
       confidence: Math.random() * 0.4 + 0.6, // 60-100% confidence
-      category,
+      category: classification.category as 'Profanity' | 'Compliance' | 'Quality',
       snippet,
       flaggedPhrase,
       speaker: speakers[Math.floor(Math.random() * speakers.length)],
