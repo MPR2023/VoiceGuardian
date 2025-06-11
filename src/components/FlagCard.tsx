@@ -6,7 +6,6 @@ import {
   Eye, 
   Play, 
   Pause, 
-  ExternalLink, 
   MessageSquare, 
   CheckCircle, 
   ArrowUp, 
@@ -23,7 +22,6 @@ interface FlagCardProps {
   snippet: string;                             // ~25–30 word transcript snippet
   flaggedPhrase: string;                       // offending word/phrase
   speaker?: string;                            // e.g. "Agent: Jane D."
-  policyLink?: string;                         // URL to policy section
   history?: Array<{ reviewer: string; note: string; date: string }>;
   audioRef: React.RefObject<HTMLAudioElement>;
   clipRange: { start: number; end: number };
@@ -40,7 +38,6 @@ const FlagCard: React.FC<FlagCardProps> = ({
   snippet,
   flaggedPhrase,
   speaker,
-  policyLink,
   history = [],
   audioRef,
   clipRange,
@@ -287,21 +284,6 @@ const FlagCard: React.FC<FlagCardProps> = ({
             "{highlightFlaggedPhrase(snippet, flaggedPhrase)}"
           </p>
         </div>
-
-        {/* Policy Link */}
-        {policyLink && (
-          <div className="mb-4">
-            <a
-              href={policyLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center space-x-2 text-blue-600 hover:text-blue-700 text-sm font-medium hover:underline min-h-[44px] py-2"
-            >
-              <ExternalLink className="h-4 w-4" />
-              <span>View Related Policy</span>
-            </a>
-          </div>
-        )}
 
         {/* Review History */}
         {history.length > 0 && (
