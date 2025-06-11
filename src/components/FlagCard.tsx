@@ -106,88 +106,17 @@ const FlagCard: React.FC<FlagCardProps> = ({
   const categoryConfig = getCategoryConfig(category);
   const SeverityIcon = severityConfig.icon;
 
-  // Clean up event listeners when component unmounts or audio changes
-  useEffect(() => {
-    return () => {
-      if (audioRef.current) {
-        // Remove any lingering event listeners
-        const audio = audioRef.current;
-        const events = ['timeupdate', 'pause', 'ended', 'loadedmetadata'];
-        events.forEach(event => {
-          audio.removeEventListener(event, () => {});
-        });
-      }
-    };
-  }, [audioRef]);
-
   // Handle audio clip playback with precise range control
   const handlePlayClip = () => {
-    if (!audioRef.current) return;
-
-    const audio = audioRef.current;
-
-    if (isPlaying) {
-      audio.pause();
-      setIsPlaying(false);
-      return;
+    if (audioRef.current) {
+      audioRef.current.currentTime = clipRange.start;
+      audioRef.current.play();
+      setTimeout(() => {
+        if (audioRef.current) {
+          audioRef.current.pause();
+        }
+      }, (clipRange.end - clipRange.start) * 1000);
     }
-
-    // Ensure audio is loaded
-    if (audio.readyState < 2) {
-      const handleLoadedData = () => {
-        startClipPlayback();
-        audio.removeEventListener('loadeddata', handleLoadedData);
-      };
-      audio.addEventListener('loadeddata', handleLoadedData);
-      audio.load();
-      return;
-    }
-
-    startClipPlayback();
-  };
-
-  const startClipPlayback = () => {
-    if (!audioRef.current) return;
-
-    const audio = audioRef.current;
-    
-    // Set audio to start position
-    audio.currentTime = clipRange.start;
-    setIsPlaying(true);
-
-    // Create a precise time update handler for this specific clip
-    const handleTimeUpdate = () => {
-      if (audio.currentTime >= clipRange.end) {
-        audio.pause();
-        setIsPlaying(false);
-        // Clean up this specific listener
-        audio.removeEventListener('timeupdate', handleTimeUpdate);
-      }
-    };
-
-    // Handle pause/end events
-    const handlePlaybackEnd = () => {
-      setIsPlaying(false);
-      // Clean up listeners
-      audio.removeEventListener('timeupdate', handleTimeUpdate);
-      audio.removeEventListener('pause', handlePlaybackEnd);
-      audio.removeEventListener('ended', handlePlaybackEnd);
-    };
-
-    // Add event listeners
-    audio.addEventListener('timeupdate', handleTimeUpdate);
-    audio.addEventListener('pause', handlePlaybackEnd);
-    audio.addEventListener('ended', handlePlaybackEnd);
-
-    // Start playback
-    audio.play().catch((error) => {
-      console.error('Error playing audio clip:', error);
-      setIsPlaying(false);
-      // Clean up listeners on error
-      audio.removeEventListener('timeupdate', handleTimeUpdate);
-      audio.removeEventListener('pause', handlePlaybackEnd);
-      audio.removeEventListener('ended', handlePlaybackEnd);
-    });
   };
 
   // Highlight flagged phrase in snippet
@@ -255,17 +184,8 @@ const FlagCard: React.FC<FlagCardProps> = ({
               onClick={handlePlayClip}
               className="flex items-center space-x-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors min-h-[44px] text-sm"
             >
-              {isPlaying ? (
-                <>
-                  <Pause className="h-4 w-4" />
-                  <span>Pause Clip</span>
-                </>
-              ) : (
-                <>
-                  <Play className="h-4 w-4" />
-                  <span>Play Clip</span>
-                </>
-              )}
+              <Play className="h-4 w-4" />
+              <span>Play Clip</span>
             </button>
             
             <div className="text-xs text-gray-500 hidden sm:block">
