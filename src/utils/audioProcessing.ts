@@ -43,6 +43,7 @@ export const formatTime = (seconds: number): string => {
 export const generateMockFlags = (duration: number): FlaggedTimestamp[] => {
   const flags: FlaggedTimestamp[] = [];
   const severities: ('critical' | 'warning' | 'info' | 'review')[] = ['critical', 'warning', 'info', 'review'];
+  const categories: ('Profanity' | 'Compliance' | 'Quality')[] = ['Profanity', 'Compliance', 'Quality'];
   const labels = [
     'Profanity detected',
     'Aggressive tone',
@@ -53,17 +54,79 @@ export const generateMockFlags = (duration: number): FlaggedTimestamp[] => {
     'Compliance violation',
     'Content review needed'
   ];
+
+  const snippets = [
+    "I understand your frustration, but I need to follow our company policy regarding refunds and exchanges.",
+    "Thank you for calling customer service today. How can I assist you with your account or billing questions?",
+    "I'm sorry to hear about the issue with your order. Let me check the status and see what options we have.",
+    "Our system shows that your payment was processed successfully. Would you like me to send you a confirmation email?",
+    "I can definitely help you with that request. Let me pull up your account information and review the details.",
+    "Based on our conversation today, I'll be escalating this to our technical support team for further assistance.",
+    "I want to make sure we resolve this issue completely. Is there anything else I can help you with today?",
+    "Your feedback is important to us. I'll make sure to document this for our quality assurance team."
+  ];
+
+  const speakers = [
+    "Agent: Sarah M.",
+    "Agent: John D.",
+    "Agent: Maria L.",
+    "Customer",
+    "Agent: David R.",
+    "Agent: Lisa K."
+  ];
+
+  const policyLinks = [
+    "https://company.com/policies/refund-policy",
+    "https://company.com/policies/data-privacy",
+    "https://company.com/policies/customer-service",
+    "https://company.com/policies/compliance"
+  ];
   
   const numFlags = Math.floor(Math.random() * 8) + 3;
   
   for (let i = 0; i < numFlags; i++) {
+    const timestamp = Math.random() * duration;
+    const category = categories[Math.floor(Math.random() * categories.length)];
+    const severity = severities[Math.floor(Math.random() * severities.length)];
+    const snippet = snippets[Math.floor(Math.random() * snippets.length)];
+    
+    // Generate flagged phrase based on category
+    let flaggedPhrase = '';
+    if (category === 'Profanity') {
+      const profanityWords = ['damn', 'hell', 'crap', 'stupid'];
+      flaggedPhrase = profanityWords[Math.floor(Math.random() * profanityWords.length)];
+    } else if (category === 'Compliance') {
+      const complianceWords = ['personal information', 'account details', 'policy'];
+      flaggedPhrase = complianceWords[Math.floor(Math.random() * complianceWords.length)];
+    } else {
+      const qualityWords = ['issue', 'problem', 'frustration', 'sorry'];
+      flaggedPhrase = qualityWords[Math.floor(Math.random() * qualityWords.length)];
+    }
+
+    // Generate review history for some flags
+    const history = Math.random() > 0.7 ? [
+      {
+        reviewer: "QA Manager: Tom Wilson",
+        note: "Initial review completed. Flagged for supervisor attention.",
+        date: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000).toLocaleDateString()
+      }
+    ] : [];
+    
     flags.push({
       id: `flag-${i}`,
-      timestamp: Math.random() * duration,
+      timestamp,
       label: labels[Math.floor(Math.random() * labels.length)],
-      severity: severities[Math.floor(Math.random() * severities.length)],
+      severity,
       description: 'Automated analysis detected potential issue requiring review.',
-      confidence: Math.random() * 0.4 + 0.6 // 60-100% confidence
+      confidence: Math.random() * 0.4 + 0.6, // 60-100% confidence
+      category,
+      snippet,
+      flaggedPhrase,
+      speaker: speakers[Math.floor(Math.random() * speakers.length)],
+      policyLink: Math.random() > 0.5 ? policyLinks[Math.floor(Math.random() * policyLinks.length)] : undefined,
+      history,
+      startTime: timestamp,
+      endTime: timestamp + (Math.random() * 10 + 5) // 5-15 second clips
     });
   }
   
@@ -82,4 +145,12 @@ export interface FlaggedTimestamp {
   severity: 'critical' | 'warning' | 'info' | 'review';
   description: string;
   confidence: number;
+  category?: 'Profanity' | 'Compliance' | 'Quality';
+  snippet?: string;
+  flaggedPhrase?: string;
+  speaker?: string;
+  policyLink?: string;
+  history?: Array<{ reviewer: string; note: string; date: string }>;
+  startTime?: number;
+  endTime?: number;
 }

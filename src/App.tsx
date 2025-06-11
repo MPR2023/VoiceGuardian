@@ -149,6 +149,7 @@ function App() {
               onFlagClick={handleFlagClick}
               onViewAll={handleViewAllFlags}
               currentTime={currentTime}
+              audioRef={audioRef}
             />
           </div>
         );
@@ -162,6 +163,7 @@ function App() {
               onFlagClick={handleFlagClick}
               currentTime={currentTime}
               showAll
+              audioRef={audioRef}
             />
           </div>
         );

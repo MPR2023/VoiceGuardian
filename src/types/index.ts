@@ -14,6 +14,15 @@ export interface FlaggedTimestamp {
   severity: 'critical' | 'warning' | 'info' | 'review';
   description: string;
   confidence: number;
+  // New fields for FlagCard compatibility
+  category?: 'Profanity' | 'Compliance' | 'Quality';
+  snippet?: string;
+  flaggedPhrase?: string;
+  speaker?: string;
+  policyLink?: string;
+  history?: Array<{ reviewer: string; note: string; date: string }>;
+  startTime?: number;
+  endTime?: number;
 }
 
 export interface WaveformData {
