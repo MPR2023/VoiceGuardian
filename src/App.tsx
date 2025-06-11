@@ -76,7 +76,7 @@ function App() {
 
         // Check if we got meaningful transcription
         if (!transcriptionResult.text || transcriptionResult.text.trim().length < 3) {
-          throw new Error('No speech detected in audio file. Please ensure the audio contains clear speech.');
+          throw new Error('AI transcription failed to detect speech in this audio. Please ensure the audio contains clear speech and try again.');
         }
 
         // 3️⃣ Moderate transcript
