@@ -16,6 +16,20 @@ let transcriber: any = null;
 export async function transcribeAudio(blob: Blob): Promise<TranscriptionResult> {
   console.log('🎤 Starting transcription with blob size:', blob.size);
   
+  // Debug: Log blob type
+  console.log("Blob type:", blob.type);
+  
+  // Debug: Log first 100 bytes using FileReader
+  const reader = new FileReader();
+  const firstBytes = blob.slice(0, 100);
+  const arrayBuffer = await new Promise<ArrayBuffer>((resolve, reject) => {
+    reader.onload = () => resolve(reader.result as ArrayBuffer);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsArrayBuffer(firstBytes);
+  });
+  const uint8Array = new Uint8Array(arrayBuffer);
+  console.log("First 100 bytes:", uint8Array);
+  
   try {
     // Lazy-load the pipeline if not already loaded
     if (!transcriber) {
@@ -35,12 +49,19 @@ export async function transcribeAudio(blob: Blob): Promise<TranscriptionResult> 
 
     // Convert blob to array buffer for processing
     console.log('🔄 Converting audio blob to array buffer...');
-    const arrayBuffer = await blob.arrayBuffer();
-    console.log('✅ Audio converted, size:', arrayBuffer.byteLength);
+    const fullArrayBuffer = await blob.arrayBuffer();
+    console.log('✅ Audio converted, size:', fullArrayBuffer.byteLength);
+    
+    // Debug: Decode audio to check sampleRate and duration
+    console.log('🎵 Decoding audio with Web Audio API...');
+    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const audioBuffer = await audioContext.decodeAudioData(fullArrayBuffer.slice(0));
+    console.log("Sample rate:", audioBuffer.sampleRate);
+    console.log("Duration:", audioBuffer.duration);
     
     // Run transcription with word-level timestamps
     console.log('🎯 Running transcription...');
-    const result = await transcriber(arrayBuffer, {
+    const result = await transcriber(fullArrayBuffer, {
       return_timestamps: 'word',
       chunk_length_s: 30,
       stride_length_s: 5,
