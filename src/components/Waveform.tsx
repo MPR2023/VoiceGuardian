@@ -167,7 +167,7 @@ const Waveform: React.FC<WaveformProps> = ({ audio }) => {
       setFlaggedWords([]);
       setIsUsingKeywordModeration(false);
     } catch (error) {
-      console.error('AI Transcription failed:', error);
+      console.error('Transcription Error:', error);
       
       // Check if Web Speech API is available as fallback
       const SpeechRecognition = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -231,7 +231,7 @@ const Waveform: React.FC<WaveformProps> = ({ audio }) => {
       const flagged = await moderateTranscript(transcription.text, transcription.words);
       setFlaggedWords(flagged);
     } catch (error) {
-      console.error('Moderation failed:', error);
+      console.error('Moderation Error:', error);
       
       // Check if this was an AI model failure and we fell back to keywords
       if (error instanceof Error && error.message.includes('keyword-based moderation')) {
