@@ -27,7 +27,7 @@ function App() {
 
   const { audioFiles, selectedFile, selectFile } = useAudioStore();
 
-  // Audio playback effect
+  // Audio playback effect - used for FlaggedTimestamps component
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -177,6 +177,7 @@ function App() {
     }
   }, [activeTab]);
 
+  // Audio playback controls - used by FlaggedTimestamps component
   const handlePlayPause = useCallback(() => {
     if (!audioRef.current || !selectedFile) return;
 
@@ -329,7 +330,7 @@ function App() {
         </main>
       </div>
       
-      {/* Hidden audio element for playback */}
+      {/* Hidden audio element for playback - used by FlaggedTimestamps */}
       {selectedFile && (
         <audio
           ref={audioRef}
