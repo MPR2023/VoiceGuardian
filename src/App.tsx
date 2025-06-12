@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
 import AudioUploader from './components/AudioUploader';
-import WaveformViewer from './components/WaveformViewer';
+import Waveform from './components/Waveform';
 import FlaggedTimestamps from './components/FlaggedTimestamps';
 import Dashboard from './components/Dashboard';
 import AudioFiles from './components/AudioFiles';
@@ -253,14 +253,9 @@ function App() {
               </div>
             )}
 
-            <WaveformViewer
-              waveformData={waveformData}
-              audioUrl={selectedFile?.url || ''}
-              isPlaying={isPlaying}
-              currentTime={currentTime}
-              onPlayPause={handlePlayPause}
-              onTimeChange={handleTimeChange}
-            />
+            {selectedFile && (
+              <Waveform audio={{ id: selectedFile.id, blob: selectedFile.blob }} />
+            )}
             <FlaggedTimestamps
               flags={flaggedTimestamps}
               onFlagClick={handleFlagClick}
