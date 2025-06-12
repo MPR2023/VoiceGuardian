@@ -153,6 +153,8 @@ const Waveform: React.FC<WaveformProps> = ({ audio }) => {
   };
 
   const handleTranscribe = async () => {
+    console.log("AI Transcribe button clicked");
+    
     if (isTranscribing) return;
 
     setIsTranscribing(true);
@@ -217,6 +219,8 @@ const Waveform: React.FC<WaveformProps> = ({ audio }) => {
   };
 
   const handleModerate = async () => {
+    console.log("Moderate button clicked");
+    
     if (isModerating || !transcription?.text) return;
 
     setIsModerating(true);
