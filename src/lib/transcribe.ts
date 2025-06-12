@@ -1,4 +1,5 @@
 import { pipeline } from '@xenova/transformers';
+import { convertToWavIfNeeded } from '../utils/audioConversion';
 
 export interface TranscriptionWord {
   start: number;
@@ -16,12 +17,30 @@ let transcriber: any = null;
 export async function transcribeAudio(blob: Blob): Promise<TranscriptionResult> {
   console.log('🎤 Starting transcription with blob size:', blob.size);
   
+  // UNIVERSAL CONVERSION: Always convert to WAV before sending to Whisper
+  console.log('🔄 Ensuring audio is in WAV format for Whisper...');
+  let processedBlob: Blob;
+  
+  try {
+    const conversionResult = await convertToWavIfNeeded(blob);
+    processedBlob = conversionResult.blob;
+    
+    if (conversionResult.converted) {
+      console.log('✅ Audio converted to WAV for Whisper compatibility');
+    } else {
+      console.log('✅ Audio already in compatible format');
+    }
+  } catch (conversionError) {
+    console.error('❌ Audio conversion failed:', conversionError);
+    throw new Error(`Audio conversion failed: ${conversionError instanceof Error ? conversionError.message : 'Unknown error'}`);
+  }
+  
   // Debug: Log blob type
-  console.log("Blob type:", blob.type);
+  console.log("Processed blob type:", processedBlob.type);
   
   // Debug: Log first 100 bytes using FileReader
   const reader = new FileReader();
-  const firstBytes = blob.slice(0, 100);
+  const firstBytes = processedBlob.slice(0, 100);
   const arrayBuffer = await new Promise<ArrayBuffer>((resolve, reject) => {
     reader.onload = () => resolve(reader.result as ArrayBuffer);
     reader.onerror = () => reject(reader.error);
@@ -48,8 +67,8 @@ export async function transcribeAudio(blob: Blob): Promise<TranscriptionResult> 
     }
 
     // Convert blob to array buffer for processing
-    console.log('🔄 Converting audio blob to array buffer...');
-    const fullArrayBuffer = await blob.arrayBuffer();
+    console.log('🔄 Converting processed audio blob to array buffer...');
+    const fullArrayBuffer = await processedBlob.arrayBuffer();
     console.log('✅ Audio converted, size:', fullArrayBuffer.byteLength);
     
     // Debug: Decode audio to check sampleRate and duration
@@ -60,7 +79,7 @@ export async function transcribeAudio(blob: Blob): Promise<TranscriptionResult> 
     console.log("Duration:", audioBuffer.duration);
     
     // Run transcription with word-level timestamps
-    console.log('🎯 Running transcription...');
+    console.log('🎯 Running transcription on processed audio...');
     const result = await transcriber(fullArrayBuffer, {
       return_timestamps: 'word',
       chunk_length_s: 30,

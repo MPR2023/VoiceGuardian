@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useState } from 'react';
 import { FileText, Loader2, Shield, AlertTriangle, Flag, Mic, MicOff, RefreshCw } from 'lucide-react';
 import { transcribeAudio, transcribeWithWebSpeech, TranscriptionResult } from '../lib/transcribe';
 import { moderateTranscript } from '../lib/moderate';
-import { convertToWavIfNeeded, getFormatDisplayName } from '../utils/audioConversion';
+import { getFormatDisplayName } from '../utils/audioConversion';
 
 interface WaveformProps {
   audio: { id: string; blob: Blob };
@@ -21,17 +21,12 @@ const Waveform: React.FC<WaveformProps> = ({ audio }) => {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isTranscribing, setIsTranscribing] = useState(false);
-  const [isConverting, setIsConverting] = useState(false);
   const [transcription, setTranscription] = useState<TranscriptionResult | null>(null);
   const [isModerating, setIsModerating] = useState(false);
   const [flaggedWords, setFlaggedWords] = useState<any[]>([]);
   const [isUsingWebSpeech, setIsUsingWebSpeech] = useState(false);
   const [isListeningForSpeech, setIsListeningForSpeech] = useState(false);
   const [isUsingKeywordModeration, setIsUsingKeywordModeration] = useState(false);
-  const [conversionInfo, setConversionInfo] = useState<{
-    originalFormat: string;
-    converted: boolean;
-  } | null>(null);
 
   useEffect(() => {
     const initWaveSurfer = async () => {
@@ -167,24 +162,16 @@ const Waveform: React.FC<WaveformProps> = ({ audio }) => {
     setIsUsingWebSpeech(false);
     
     try {
-      // Convert audio to WAV if needed
-      setIsConverting(true);
-      const conversionResult = await convertToWavIfNeeded(audio.blob);
-      setConversionInfo({
-        originalFormat: conversionResult.originalFormat,
-        converted: conversionResult.converted
-      });
-      setIsConverting(false);
-
-      // Use the converted (or original) blob for transcription
-      const result = await transcribeAudio(conversionResult.blob);
+      // Note: Audio conversion now happens inside transcribeAudio()
+      // No need to convert here as it's handled universally in the transcribe function
+      console.log('🎯 Sending audio to transcription (conversion handled internally)');
+      const result = await transcribeAudio(audio.blob);
       setTranscription(result);
       // Clear previous moderation results when new transcription is done
       setFlaggedWords([]);
       setIsUsingKeywordModeration(false);
     } catch (error) {
       console.error('Transcription Error:', error);
-      setIsConverting(false);
       
       // Check if Web Speech API is available as fallback
       const SpeechRecognition = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -288,15 +275,10 @@ const Waveform: React.FC<WaveformProps> = ({ audio }) => {
         
         <button
           onClick={handleTranscribe}
-          disabled={isTranscribing || isListeningForSpeech || isConverting}
+          disabled={isTranscribing || isListeningForSpeech}
           className="flex items-center gap-2 rounded px-3 py-2 bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors min-h-[44px] text-sm md:text-base"
         >
-          {isConverting ? (
-            <>
-              <RefreshCw className="h-4 w-4 animate-spin" />
-              Converting...
-            </>
-          ) : isTranscribing ? (
+          {isTranscribing ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
               Transcribing...
@@ -311,7 +293,7 @@ const Waveform: React.FC<WaveformProps> = ({ audio }) => {
 
         <button
           onClick={handleWebSpeechTranscribe}
-          disabled={isTranscribing || isListeningForSpeech || isConverting}
+          disabled={isTranscribing || isListeningForSpeech}
           className="flex items-center gap-2 rounded px-3 py-2 bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors min-h-[44px] text-sm md:text-base"
         >
           {isListeningForSpeech ? (
@@ -352,31 +334,17 @@ const Waveform: React.FC<WaveformProps> = ({ audio }) => {
         </span>
       </div>
 
-      {/* Audio Conversion Info */}
-      {conversionInfo && (
-        <div className={`rounded-lg p-3 md:p-4 border ${
-          conversionInfo.converted 
-            ? 'bg-blue-50 border-blue-200' 
-            : 'bg-green-50 border-green-200'
-        }`}>
-          <div className={`flex items-center gap-2 mb-2 ${
-            conversionInfo.converted ? 'text-blue-700' : 'text-green-700'
-          }`}>
-            <RefreshCw className="h-5 w-5" />
-            <span className="font-medium text-sm md:text-base">
-              {conversionInfo.converted ? 'Audio Converted' : 'Audio Format Compatible'}
-            </span>
-          </div>
-          <p className={`text-sm ${
-            conversionInfo.converted ? 'text-blue-600' : 'text-green-600'
-          }`}>
-            {conversionInfo.converted 
-              ? `Original format (${getFormatDisplayName(conversionInfo.originalFormat)}) was converted to WAV for optimal transcription.`
-              : `Audio format (${getFormatDisplayName(conversionInfo.originalFormat)}) is compatible with AI transcription.`
-            }
-          </p>
+      {/* Audio Format Info */}
+      <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+        <div className="flex items-center gap-2 text-gray-700 mb-1">
+          <RefreshCw className="h-4 w-4" />
+          <span className="font-medium text-sm">Audio Processing</span>
         </div>
-      )}
+        <p className="text-sm text-gray-600">
+          Audio format: {getFormatDisplayName(audio.blob.type)} • 
+          All audio is automatically converted to WAV before AI transcription for optimal compatibility.
+        </p>
+      </div>
 
       {/* Keyword Moderation Notice */}
       {isUsingKeywordModeration && (

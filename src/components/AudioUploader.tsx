@@ -1,13 +1,18 @@
 import React, { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { Upload, Mic, MicOff, FileAudio, X, AlertCircle, AlertTriangle } from 'lucide-react';
+import { Upload, Mic, MicOff, FileAudio, X, AlertCircle, AlertTriangle, RefreshCw } from 'lucide-react';
 import { useAudioRecorder } from '../hooks/useAudioRecorder';
 import { useAudioStore } from '../store/useAudioStore';
-import { getFormatWarning, getFormatDisplayName } from '../utils/audioConversion';
+import { getFormatWarning, getFormatDisplayName, convertToWavIfNeeded } from '../utils/audioConversion';
 
 const AudioUploader: React.FC = () => {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [formatWarning, setFormatWarning] = useState<string | null>(null);
+  const [isConverting, setIsConverting] = useState(false);
+  const [conversionInfo, setConversionInfo] = useState<{
+    originalFormat: string;
+    converted: boolean;
+  } | null>(null);
   const { isRecording, startRecording, stopRecording, error: recordingError } = useAudioRecorder();
   const addAudioFile = useAudioStore(state => state.addAudioFile);
 
@@ -31,26 +36,55 @@ const AudioUploader: React.FC = () => {
   };
 
   const processAudioFile = useCallback(async (file: File) => {
+    setIsConverting(true);
+    
     try {
-      const duration = await getAudioDuration(file);
+      // Convert to WAV if needed (universal conversion)
+      console.log('🔄 Processing uploaded file:', file.name, file.type);
+      const conversionResult = await convertToWavIfNeeded(file);
+      
+      // Create a new File object from the converted blob
+      const processedFile = conversionResult.converted 
+        ? new File([conversionResult.blob], file.name.replace(/\.[^/.]+$/, '.wav'), { 
+            type: 'audio/wav' 
+          })
+        : file;
+
+      const duration = await getAudioDuration(processedFile);
       
       // Check for format warnings
       const warning = getFormatWarning(file.type);
       setFormatWarning(warning);
       
+      // Set conversion info
+      setConversionInfo({
+        originalFormat: conversionResult.originalFormat,
+        converted: conversionResult.converted
+      });
+
       const audioFileData = {
         id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        name: file.name,
+        name: conversionResult.converted ? file.name.replace(/\.[^/.]+$/, '.wav') : file.name,
         duration,
-        blob: file,
-        size: file.size,
+        blob: processedFile, // Use the processed (potentially converted) file
+        size: processedFile.size,
         uploadedAt: new Date()
       };
 
       addAudioFile(audioFileData);
-      setUploadedFile(file);
+      setUploadedFile(processedFile);
+      
+      console.log('✅ File processed and added to store:', {
+        original: file.name,
+        processed: audioFileData.name,
+        converted: conversionResult.converted
+      });
+      
     } catch (error) {
-      console.error('Error processing audio file:', error);
+      console.error('❌ Error processing audio file:', error);
+      alert(`Audio conversion failed: ${error instanceof Error ? error.message : 'Unknown error'}. Please try a different file.`);
+    } finally {
+      setIsConverting(false);
     }
   }, [addAudioFile]);
 
@@ -74,10 +108,36 @@ const AudioUploader: React.FC = () => {
     if (isRecording) {
       const blob = await stopRecording();
       if (blob) {
-        const file = new File([blob], `recording-${Date.now()}.wav`, { 
-          type: blob.type || 'audio/wav' 
-        });
-        await processAudioFile(file);
+        setIsConverting(true);
+        
+        try {
+          // Convert recorded audio to WAV (universal conversion)
+          console.log('🔄 Processing recorded audio:', blob.type);
+          const conversionResult = await convertToWavIfNeeded(blob);
+          
+          const file = new File([conversionResult.blob], `recording-${Date.now()}.wav`, { 
+            type: 'audio/wav' 
+          });
+          
+          // Set conversion info for recordings
+          setConversionInfo({
+            originalFormat: conversionResult.originalFormat,
+            converted: conversionResult.converted
+          });
+          
+          await processAudioFile(file);
+          
+          console.log('✅ Recording processed:', {
+            originalFormat: conversionResult.originalFormat,
+            converted: conversionResult.converted
+          });
+          
+        } catch (error) {
+          console.error('❌ Error processing recorded audio:', error);
+          alert(`Recording conversion failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        } finally {
+          setIsConverting(false);
+        }
       }
     } else {
       await startRecording();
@@ -87,6 +147,7 @@ const AudioUploader: React.FC = () => {
   const handleRemoveFile = useCallback(() => {
     setUploadedFile(null);
     setFormatWarning(null);
+    setConversionInfo(null);
   }, []);
 
   return (
@@ -102,8 +163,19 @@ const AudioUploader: React.FC = () => {
         </div>
       )}
 
+      {/* Conversion Status */}
+      {isConverting && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-center space-x-3">
+          <RefreshCw className="h-5 w-5 text-blue-600 flex-shrink-0 animate-spin" />
+          <div>
+            <p className="text-blue-800 font-medium">Converting Audio to WAV...</p>
+            <p className="text-blue-700 text-sm">Optimizing for transcription compatibility</p>
+          </div>
+        </div>
+      )}
+
       {/* Format Warning */}
-      {formatWarning && (
+      {formatWarning && !isConverting && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 flex items-start space-x-3">
           <AlertTriangle className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
           <div>
@@ -113,42 +185,78 @@ const AudioUploader: React.FC = () => {
         </div>
       )}
 
+      {/* Conversion Info */}
+      {conversionInfo && !isConverting && (
+        <div className={`rounded-lg p-4 border ${
+          conversionInfo.converted 
+            ? 'bg-blue-50 border-blue-200' 
+            : 'bg-green-50 border-green-200'
+        }`}>
+          <div className={`flex items-center gap-2 mb-2 ${
+            conversionInfo.converted ? 'text-blue-700' : 'text-green-700'
+          }`}>
+            <RefreshCw className="h-5 w-5" />
+            <span className="font-medium text-sm md:text-base">
+              {conversionInfo.converted ? 'Audio Converted to WAV' : 'Audio Format Compatible'}
+            </span>
+          </div>
+          <p className={`text-sm ${
+            conversionInfo.converted ? 'text-blue-600' : 'text-green-600'
+          }`}>
+            {conversionInfo.converted 
+              ? `Original format (${getFormatDisplayName(conversionInfo.originalFormat)}) was converted to WAV for optimal transcription.`
+              : `Audio format (${getFormatDisplayName(conversionInfo.originalFormat)}) is compatible with AI transcription.`
+            }
+          </p>
+        </div>
+      )}
+
       {/* File Upload Dropzone */}
       {!uploadedFile ? (
         <div
           {...getRootProps()}
           className={`relative border-2 border-dashed rounded-xl p-4 md:p-8 text-center transition-all duration-300 cursor-pointer ${
-            isDragActive && !isDragReject
+            isConverting
+              ? 'border-blue-500 bg-blue-50 opacity-50 cursor-not-allowed'
+              : isDragActive && !isDragReject
               ? 'border-blue-500 bg-blue-50 scale-105 shadow-lg'
               : isDragReject
               ? 'border-red-500 bg-red-50'
               : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50 hover:shadow-md'
           }`}
         >
-          <input {...getInputProps()} />
+          <input {...getInputProps()} disabled={isConverting} />
           
           <div className="space-y-4">
             <div className="flex justify-center">
               <div className={`p-3 md:p-4 rounded-full transition-all duration-300 ${
-                isDragActive && !isDragReject 
+                isConverting
+                  ? 'bg-blue-100'
+                  : isDragActive && !isDragReject 
                   ? 'bg-blue-100 scale-110' 
                   : isDragReject
                   ? 'bg-red-100'
                   : 'bg-gray-100 hover:bg-gray-200'
               }`}>
-                <Upload className={`h-6 w-6 md:h-8 md:w-8 transition-colors ${
-                  isDragActive && !isDragReject 
-                    ? 'text-blue-600' 
-                    : isDragReject
-                    ? 'text-red-600'
-                    : 'text-gray-600'
-                }`} />
+                {isConverting ? (
+                  <RefreshCw className="h-6 w-6 md:h-8 md:w-8 text-blue-600 animate-spin" />
+                ) : (
+                  <Upload className={`h-6 w-6 md:h-8 md:w-8 transition-colors ${
+                    isDragActive && !isDragReject 
+                      ? 'text-blue-600' 
+                      : isDragReject
+                      ? 'text-red-600'
+                      : 'text-gray-600'
+                  }`} />
+                )}
               </div>
             </div>
             
             <div>
               <p className="text-base md:text-lg font-semibold text-gray-900">
-                {isDragActive && !isDragReject
+                {isConverting
+                  ? 'Converting audio to WAV...'
+                  : isDragActive && !isDragReject
                   ? 'Drop your audio file here'
                   : isDragReject
                   ? 'Invalid file type'
@@ -156,7 +264,9 @@ const AudioUploader: React.FC = () => {
                 }
               </p>
               <p className="text-gray-600 mt-1 text-sm md:text-base">
-                {isDragReject 
+                {isConverting
+                  ? 'Please wait while we optimize your audio for transcription'
+                  : isDragReject 
                   ? 'Please upload audio files only (MP3, WAV, M4A, etc.)'
                   : 'or click to browse your files'
                 }
@@ -165,13 +275,14 @@ const AudioUploader: React.FC = () => {
                 Supports MP3, WAV, M4A, AAC, OGG, FLAC, WebM (max 100MB)
               </p>
               <p className="text-xs text-gray-400 mt-1">
-                Non-standard formats will be automatically converted to WAV
+                All formats are automatically converted to WAV for optimal transcription
               </p>
             </div>
             
             <button
               type="button"
-              className="inline-flex items-center px-4 md:px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-medium rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200 transform hover:scale-105 shadow-lg hover:shadow-xl min-h-[44px]"
+              disabled={isConverting}
+              className="inline-flex items-center px-4 md:px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-medium rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200 transform hover:scale-105 shadow-lg hover:shadow-xl min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
             >
               <FileAudio className="h-5 w-5 mr-2" />
               Choose File
@@ -215,7 +326,7 @@ const AudioUploader: React.FC = () => {
       <div className="text-center">
         <button
           onClick={handleRecordingToggle}
-          disabled={!!recordingError}
+          disabled={!!recordingError || isConverting}
           className={`inline-flex items-center px-6 md:px-8 py-3 md:py-4 font-semibold rounded-xl transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none min-h-[44px] ${
             isRecording
               ? 'bg-gradient-to-r from-red-600 to-red-700 text-white hover:from-red-700 hover:to-red-800'
@@ -243,7 +354,7 @@ const AudioUploader: React.FC = () => {
         )}
         
         <p className="text-xs text-gray-500 mt-2">
-          Recordings are automatically saved as WAV format
+          Recordings are automatically converted to WAV format for optimal transcription
         </p>
       </div>
     </div>
