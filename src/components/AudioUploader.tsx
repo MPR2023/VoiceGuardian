@@ -1,11 +1,13 @@
 import React, { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { Upload, Mic, MicOff, FileAudio, X, AlertCircle } from 'lucide-react';
+import { Upload, Mic, MicOff, FileAudio, X, AlertCircle, AlertTriangle } from 'lucide-react';
 import { useAudioRecorder } from '../hooks/useAudioRecorder';
 import { useAudioStore } from '../store/useAudioStore';
+import { getFormatWarning, getFormatDisplayName } from '../utils/audioConversion';
 
 const AudioUploader: React.FC = () => {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [formatWarning, setFormatWarning] = useState<string | null>(null);
   const { isRecording, startRecording, stopRecording, error: recordingError } = useAudioRecorder();
   const addAudioFile = useAudioStore(state => state.addAudioFile);
 
@@ -31,6 +33,10 @@ const AudioUploader: React.FC = () => {
   const processAudioFile = useCallback(async (file: File) => {
     try {
       const duration = await getAudioDuration(file);
+      
+      // Check for format warnings
+      const warning = getFormatWarning(file.type);
+      setFormatWarning(warning);
       
       const audioFileData = {
         id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -58,7 +64,7 @@ const AudioUploader: React.FC = () => {
   const { getRootProps, getInputProps, isDragActive, isDragReject } = useDropzone({
     onDrop,
     accept: {
-      'audio/*': ['.mp3', '.wav', '.m4a', '.aac', '.ogg', '.flac']
+      'audio/*': ['.mp3', '.wav', '.m4a', '.aac', '.ogg', '.flac', '.webm']
     },
     multiple: false,
     maxSize: 100 * 1024 * 1024 // 100MB limit
@@ -80,6 +86,7 @@ const AudioUploader: React.FC = () => {
 
   const handleRemoveFile = useCallback(() => {
     setUploadedFile(null);
+    setFormatWarning(null);
   }, []);
 
   return (
@@ -91,6 +98,17 @@ const AudioUploader: React.FC = () => {
           <div>
             <p className="text-red-800 font-medium">Recording Error</p>
             <p className="text-red-700 text-sm">{recordingError}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Format Warning */}
+      {formatWarning && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 flex items-start space-x-3">
+          <AlertTriangle className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-yellow-800 font-medium">Format Notice</p>
+            <p className="text-yellow-700 text-sm">{formatWarning}</p>
           </div>
         </div>
       )}
@@ -144,7 +162,10 @@ const AudioUploader: React.FC = () => {
                 }
               </p>
               <p className="text-sm text-gray-500 mt-2">
-                Supports MP3, WAV, M4A, AAC, OGG, FLAC (max 100MB)
+                Supports MP3, WAV, M4A, AAC, OGG, FLAC, WebM (max 100MB)
+              </p>
+              <p className="text-xs text-gray-400 mt-1">
+                Non-standard formats will be automatically converted to WAV
               </p>
             </div>
             
@@ -166,9 +187,11 @@ const AudioUploader: React.FC = () => {
               </div>
               <div className="min-w-0 flex-1">
                 <p className="font-semibold text-gray-900 truncate">{uploadedFile.name}</p>
-                <p className="text-sm text-gray-600">
-                  {(uploadedFile.size / (1024 * 1024)).toFixed(2)} MB
-                </p>
+                <div className="flex items-center space-x-2 text-sm text-gray-600">
+                  <span>{(uploadedFile.size / (1024 * 1024)).toFixed(2)} MB</span>
+                  <span>•</span>
+                  <span>{getFormatDisplayName(uploadedFile.type)}</span>
+                </div>
               </div>
             </div>
             <button
@@ -218,6 +241,10 @@ const AudioUploader: React.FC = () => {
             <span className="text-red-600 font-medium text-sm md:text-base">Recording in progress...</span>
           </div>
         )}
+        
+        <p className="text-xs text-gray-500 mt-2">
+          Recordings are automatically saved as WAV format
+        </p>
       </div>
     </div>
   );
