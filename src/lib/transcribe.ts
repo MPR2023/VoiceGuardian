@@ -1,4 +1,4 @@
-import { pipeline } from '@xenova/transformers';
+// import { pipeline } from '@xenova/transformers';
 
 export interface TranscriptionWord {
   start: number;
@@ -11,7 +11,7 @@ export interface TranscriptionResult {
   text: string;
 }
 
-let transcriber: any = null;
+// let transcriber: any = null;
 
 export async function transcribeAudioServer(blob: Blob, model = "whisper-base"): Promise<string> {
   const url = `${import.meta.env.VITE_TRANSCRIBE_API}?model=${model}`;
@@ -41,20 +41,22 @@ export async function transcribeAudioServer(blob: Blob, model = "whisper-base"):
   }
 }
 
+// COMMENTED OUT: Browser-based Xenova Whisper transcription
+/*
 export async function transcribeAudioBrowser(blob: Blob): Promise<TranscriptionResult> {
   console.log('🎤 Starting browser transcription with blob size:', blob.size);
   
   try {
     // Lazy-load the pipeline if not already loaded
     if (!transcriber) {
-      console.log('📥 Loading Whisper model...');
+      console.log('🤖 Loading AI moderation model...');
       try {
         transcriber = await pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny.en', {
           trust_remote_code: true,   // allow loading custom code if needed
           dtype: 'fp32',
           device: 'cpu'
         });
-        console.log('✅ Whisper model loaded successfully');
+        console.log('✅ AI moderation model loaded successfully');
       } catch (modelError) {
         console.error('❌ Model loading failed:', modelError);
         throw new Error('Failed to load AI transcription model. Please check your internet connection and try again.');
@@ -111,29 +113,24 @@ export async function transcribeAudioBrowser(blob: Blob): Promise<TranscriptionR
     throw error;  // bubble up the real failure
   }
 }
+*/
 
-// Main transcription function that uses server by default
+// Main transcription function - SERVER ONLY
 export async function transcribeAudio(blob: Blob, useServer = true): Promise<TranscriptionResult> {
-  if (useServer) {
-    try {
-      console.log('🌐 Attempting server transcription...');
-      const text = await transcribeAudioServer(blob);
-      
-      // Convert server response to TranscriptionResult format
-      // Note: Server transcription doesn't provide word-level timestamps
-      return {
-        text,
-        words: [] // Server transcription doesn't provide word timestamps
-      };
-    } catch (serverError) {
-      console.warn('❌ Server transcription failed, falling back to browser:', serverError);
-      
-      // Fallback to browser transcription
-      return await transcribeAudioBrowser(blob);
-    }
-  } else {
-    console.log('🖥️ Using browser transcription (privacy mode)');
-    return await transcribeAudioBrowser(blob);
+  console.log('🌐 Using server-only transcription');
+  
+  try {
+    const text = await transcribeAudioServer(blob);
+    
+    // Convert server response to TranscriptionResult format
+    // Note: Server transcription doesn't provide word-level timestamps
+    return {
+      text,
+      words: [] // Server transcription doesn't provide word timestamps
+    };
+  } catch (serverError) {
+    console.error('❌ Server transcription failed:', serverError);
+    throw serverError; // Re-throw the server error
   }
 }
 
