@@ -1,4 +1,4 @@
-import { pipeline } from '@xenova/transformers';
+// import { pipeline } from '@xenova/transformers';
 
 export interface FlaggedWord {
   start: number;
@@ -9,25 +9,66 @@ export interface FlaggedWord {
   context: string;
 }
 
-let moderationPipeline: any = null;
+// let moderationPipeline: any = null;
 
-// Toxic keyword list for fallback moderation
+// Expanded toxic keyword list for keyword-based moderation
 const TOXIC_KEYWORDS = [
+  // Profanity
   "hate", "kill", "stupid", "idiot", "dumb", "fool", "loser", "darn", "hell", 
   "crap", "shit", "fuck", "bitch", "asshole", "bastard", "damn", "jerk", "suck",
   "moron", "trash", "ugly", "disgusting", "nonsense", "retard", "scum", "creep",
   "psycho", "lunatic", "slut", "whore", "cunt", "prick", "piss", "screw", "twat",
-  "dick", "cock", "jackass", "pig", "pervert"
+  "dick", "cock", "jackass", "pig", "pervert",
+  
+  // Hate speech
+  "racist", "bigot", "nazi", "fascist", "terrorist", "extremist",
+  
+  // Threats and violence
+  "murder", "violence", "attack", "destroy", "harm", "hurt", "punch", "beat",
+  
+  // Discriminatory language
+  "faggot", "dyke", "tranny", "chink", "spic", "wetback", "nigger", "kike",
+  
+  // Additional inappropriate terms
+  "porn", "sex", "nude", "naked", "masturbate", "orgasm", "penis", "vagina",
+  "breast", "boob", "ass", "butt", "horny", "sexy", "slut", "whore"
 ];
 
 // Create a set for faster lookup
 const toxicKeywordSet = new Set(TOXIC_KEYWORDS.map(word => word.toLowerCase()));
 
-// Keyword-based fallback moderation
+// Severity mapping for different types of keywords
+const getSeverityForKeyword = (word: string): string => {
+  const lowerWord = word.toLowerCase();
+  
+  // High severity (toxic/hate speech)
+  const highSeverityWords = [
+    "kill", "murder", "hate", "nazi", "fascist", "terrorist", "faggot", "dyke", 
+    "tranny", "chink", "spic", "wetback", "nigger", "kike", "fuck", "cunt"
+  ];
+  
+  // Medium severity (profanity/inappropriate)
+  const mediumSeverityWords = [
+    "shit", "bitch", "asshole", "bastard", "damn", "prick", "dick", "cock",
+    "slut", "whore", "porn", "sex", "masturbate"
+  ];
+  
+  if (highSeverityWords.includes(lowerWord)) {
+    return "toxic";
+  } else if (mediumSeverityWords.includes(lowerWord)) {
+    return "warning";
+  } else {
+    return "profanity";
+  }
+};
+
+// Keyword-based moderation function
 function moderateWithKeywords(
   transcript: string,
   wordTimestamps?: { word: string; start: number; end: number }[]
 ): { word: string; start: number; end: number; label: string }[] {
+  console.log('🔍 Running keyword-based moderation on transcript:', transcript.substring(0, 100) + '...');
+  
   const words = transcript.split(/\s+/);
   const flaggedWords: { word: string; start: number; end: number; label: string }[] = [];
 
@@ -39,15 +80,20 @@ function moderateWithKeywords(
       const start = wordTimestamps?.[index]?.start ?? index;
       const end = wordTimestamps?.[index]?.end ?? index + 1;
       
+      const severity = getSeverityForKeyword(cleanWord);
+      
       flaggedWords.push({
         word: word,
         start: start,
         end: end,
-        label: "warning"
+        label: severity
       });
+      
+      console.log('🚩 Flagged word:', word, 'as', severity);
     }
   });
 
+  console.log('✅ Keyword moderation complete, found', flaggedWords.length, 'flags');
   return flaggedWords;
 }
 
@@ -62,12 +108,12 @@ export async function moderateTranscript(
   words: { start: number; end: number; word: string; }[]
 ): Promise<FlaggedWord[]>;
 
-// Implementation with overloads
+// Implementation with overloads - KEYWORD-ONLY
 export async function moderateTranscript(
   transcriptOrWords: string | { start: number; end: number; word: string; }[],
   wordTimestamps?: { word: string; start: number; end: number }[]
 ): Promise<FlaggedWord[] | { word: string; start: number; end: number; label: string }[]> {
-  console.log('🛡️ Starting moderation with:', { 
+  console.log('🛡️ Starting KEYWORD-ONLY moderation with:', { 
     type: typeof transcriptOrWords, 
     isArray: Array.isArray(transcriptOrWords),
     wordTimestampsLength: wordTimestamps?.length 
@@ -79,182 +125,33 @@ export async function moderateTranscript(
       const words = transcriptOrWords;
       console.log('📝 Processing legacy format with', words.length, 'words');
       
-      // Try AI moderation first
-      try {
-        if (!moderationPipeline) {
-          console.log('🤖 Loading AI moderation model...');
-          moderationPipeline = await pipeline('text-classification', 'Xenova/distilbert-base-uncased-finetuned-sst-2-english');
-          console.log('✅ AI moderation model loaded');
-        }
-
-        const flaggedWords: FlaggedWord[] = [];
-
-        // Process each word with context window (±2 words)
-        for (let i = 0; i < words.length; i++) {
-          const currentWord = words[i];
-          
-          // Create context window (±2 words)
-          const contextStart = Math.max(0, i - 2);
-          const contextEnd = Math.min(words.length - 1, i + 2);
-          const contextWords = words.slice(contextStart, contextEnd + 1);
-          const phrase = contextWords.map(w => w.word).join(' ');
-
-          // Skip very short phrases
-          if (phrase.trim().length < 3) continue;
-
-          try {
-            // Get moderation results
-            const results = await moderationPipeline(phrase);
-            
-            // Find the highest scoring negative result (NEGATIVE indicates potential toxicity)
-            let bestResult = null;
-            let highestScore = 0;
-
-            for (const result of results) {
-              if (result.label.toLowerCase() === 'negative' && result.score > highestScore) {
-                bestResult = result;
-                highestScore = result.score;
-              }
-            }
-
-            // Flag if negative score > 0.7 (higher threshold since this is sentiment, not toxicity)
-            if (bestResult && bestResult.score > 0.7) {
-              // Map sentiment labels to our severity system
-              let mappedLabel = 'warning';
-              if (bestResult.score > 0.9) {
-                mappedLabel = 'toxic';
-              } else if (bestResult.score > 0.8) {
-                mappedLabel = 'warning';
-              } else {
-                mappedLabel = 'info';
-              }
-
-              flaggedWords.push({
-                start: currentWord.start,
-                end: currentWord.end,
-                word: currentWord.word,
-                label: mappedLabel,
-                score: bestResult.score,
-                context: phrase
-              });
-            }
-          } catch (error) {
-            console.warn(`Failed to moderate phrase: "${phrase}"`, error);
-            // Continue processing other words even if one fails
-          }
-        }
-
-        console.log('✅ AI moderation complete, found', flaggedWords.length, 'flags');
-        return flaggedWords;
-      } catch (aiError) {
-        console.error('❌ AI moderation failed, falling back to keyword-based moderation:', aiError);
-        
-        // Fallback to keyword-based moderation
-        const transcript = words.map(w => w.word).join(' ');
-        const keywordFlags = moderateWithKeywords(transcript, words);
-        
-        // Convert to FlaggedWord format for backward compatibility
-        return keywordFlags.map(flag => ({
-          start: flag.start,
-          end: flag.end,
-          word: flag.word,
-          label: flag.label,
-          score: 0.8, // Fixed confidence for keyword matches
-          context: transcript
-        }));
-      }
+      // Use keyword-based moderation only
+      const transcript = words.map(w => w.word).join(' ');
+      const keywordFlags = moderateWithKeywords(transcript, words);
+      
+      // Convert to FlaggedWord format for backward compatibility
+      return keywordFlags.map(flag => ({
+        start: flag.start,
+        end: flag.end,
+        word: flag.word,
+        label: flag.label,
+        score: 0.9, // High confidence for keyword matches
+        context: transcript.substring(
+          Math.max(0, transcript.indexOf(flag.word) - 30),
+          Math.min(transcript.length, transcript.indexOf(flag.word) + flag.word.length + 30)
+        )
+      }));
     }
 
     // Handle new call format (transcript string)
     const transcript = transcriptOrWords as string;
     console.log('📝 Processing transcript format, length:', transcript.length);
     
-    // Try AI moderation first
-    try {
-      if (!moderationPipeline) {
-        console.log('🤖 Loading AI moderation model...');
-        moderationPipeline = await pipeline('text-classification', 'Xenova/distilbert-base-uncased-finetuned-sst-2-english');
-        console.log('✅ AI moderation model loaded');
-      }
-
-      // For transcript-based moderation, we need to create word objects
-      const words = transcript.split(/\s+/);
-      const wordObjects = words.map((word, index) => {
-        const timestamp = wordTimestamps?.[index];
-        return {
-          start: timestamp?.start ?? index,
-          end: timestamp?.end ?? index + 1,
-          word: word.trim()
-        };
-      });
-
-      console.log('📝 Created', wordObjects.length, 'word objects for analysis');
-
-      // Use the existing AI moderation logic
-      const flaggedWords: { word: string; start: number; end: number; label: string }[] = [];
-
-      for (let i = 0; i < wordObjects.length; i++) {
-        const currentWord = wordObjects[i];
-        
-        // Create context window (±2 words)
-        const contextStart = Math.max(0, i - 2);
-        const contextEnd = Math.min(wordObjects.length - 1, i + 2);
-        const contextWords = wordObjects.slice(contextStart, contextEnd + 1);
-        const phrase = contextWords.map(w => w.word).join(' ');
-
-        // Skip very short phrases
-        if (phrase.trim().length < 3) continue;
-
-        try {
-          // Get moderation results
-          const results = await moderationPipeline(phrase);
-          
-          // Find the highest scoring negative result (NEGATIVE indicates potential toxicity)
-          let bestResult = null;
-          let highestScore = 0;
-
-          for (const result of results) {
-            if (result.label.toLowerCase() === 'negative' && result.score > highestScore) {
-              bestResult = result;
-              highestScore = result.score;
-            }
-          }
-
-          // Flag if negative score > 0.7 (higher threshold since this is sentiment, not toxicity)
-          if (bestResult && bestResult.score > 0.7) {
-            // Map sentiment labels to our severity system
-            let mappedLabel = 'warning';
-            if (bestResult.score > 0.9) {
-              mappedLabel = 'toxic';
-            } else if (bestResult.score > 0.8) {
-              mappedLabel = 'warning';
-            } else {
-              mappedLabel = 'info';
-            }
-
-            flaggedWords.push({
-              start: currentWord.start,
-              end: currentWord.end,
-              word: currentWord.word,
-              label: mappedLabel
-            });
-          }
-        } catch (error) {
-          console.warn(`Failed to moderate phrase: "${phrase}"`, error);
-          // Continue processing other words even if one fails
-        }
-      }
-
-      console.log('✅ AI moderation complete, found', flaggedWords.length, 'flags');
-      return flaggedWords;
-    } catch (aiError) {
-      console.error('❌ AI moderation failed, falling back to keyword-based moderation:', aiError);
-      
-      // Fallback to keyword-based moderation
-      const keywordFlags = moderateWithKeywords(transcript, wordTimestamps);
-      console.log('✅ Keyword moderation complete, found', keywordFlags.length, 'flags');
-      return keywordFlags;
-    }
+    // Use keyword-based moderation only
+    const keywordFlags = moderateWithKeywords(transcript, wordTimestamps);
+    console.log('✅ Keyword moderation complete, found', keywordFlags.length, 'flags');
+    return keywordFlags;
+    
   } catch (error) {
     console.error('❌ Moderation error:', error);
     
@@ -273,8 +170,11 @@ export async function moderateTranscript(
         end: flag.end,
         word: flag.word,
         label: flag.label,
-        score: 0.8, // Fixed confidence for keyword matches
-        context: transcript
+        score: 0.9, // High confidence for keyword matches
+        context: transcript.substring(
+          Math.max(0, transcript.indexOf(flag.word) - 30),
+          Math.min(transcript.length, transcript.indexOf(flag.word) + flag.word.length + 30)
+        )
       }));
     }
   }
