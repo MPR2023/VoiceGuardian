@@ -1,5 +1,4 @@
 import { pipeline } from '@xenova/transformers';
-import { convertToWavIfNeeded } from '../utils/audioConversion';
 
 export interface TranscriptionWord {
   start: number;
@@ -20,12 +19,8 @@ export async function transcribeAudioServer(blob: Blob, model = "whisper-base"):
   console.log('🌐 Sending audio to transcription server:', url);
   
   try {
-    // Convert to WAV for optimal server compatibility
-    const conversionResult = await convertToWavIfNeeded(blob);
-    const audioBlob = conversionResult.blob;
-    
     const formData = new FormData();
-    formData.append('audio', audioBlob, 'audio.wav');
+    formData.append('audio', blob, 'audio.wav');
     
     const res = await fetch(url, { 
       method: 'POST', 
@@ -49,38 +44,6 @@ export async function transcribeAudioServer(blob: Blob, model = "whisper-base"):
 export async function transcribeAudioBrowser(blob: Blob): Promise<TranscriptionResult> {
   console.log('🎤 Starting browser transcription with blob size:', blob.size);
   
-  // UNIVERSAL CONVERSION: Always convert to WAV before sending to Whisper
-  console.log('🔄 Ensuring audio is in WAV format for Whisper...');
-  let processedBlob: Blob;
-  
-  try {
-    const conversionResult = await convertToWavIfNeeded(blob);
-    processedBlob = conversionResult.blob;
-    
-    if (conversionResult.converted) {
-      console.log('✅ Audio converted to WAV for Whisper compatibility');
-    } else {
-      console.log('✅ Audio already in compatible format');
-    }
-  } catch (conversionError) {
-    console.error('❌ Audio conversion failed:', conversionError);
-    throw new Error(`Audio conversion failed: ${conversionError instanceof Error ? conversionError.message : 'Unknown error'}`);
-  }
-  
-  // Debug: Log blob type
-  console.log("Processed blob type:", processedBlob.type);
-  
-  // Debug: Log first 100 bytes using FileReader
-  const reader = new FileReader();
-  const firstBytes = processedBlob.slice(0, 100);
-  const arrayBuffer = await new Promise<ArrayBuffer>((resolve, reject) => {
-    reader.onload = () => resolve(reader.result as ArrayBuffer);
-    reader.onerror = () => reject(reader.error);
-    reader.readAsArrayBuffer(firstBytes);
-  });
-  const uint8Array = new Uint8Array(arrayBuffer);
-  console.log("First 100 bytes:", uint8Array);
-  
   try {
     // Lazy-load the pipeline if not already loaded
     if (!transcriber) {
@@ -99,20 +62,20 @@ export async function transcribeAudioBrowser(blob: Blob): Promise<TranscriptionR
     }
 
     // Convert blob to array buffer for processing
-    console.log('🔄 Converting processed audio blob to array buffer...');
-    const fullArrayBuffer = await processedBlob.arrayBuffer();
-    console.log('✅ Audio converted, size:', fullArrayBuffer.byteLength);
+    console.log('🔄 Converting audio blob to array buffer...');
+    const arrayBuffer = await blob.arrayBuffer();
+    console.log('✅ Audio converted, size:', arrayBuffer.byteLength);
     
     // Debug: Decode audio to check sampleRate and duration
     console.log('🎵 Decoding audio with Web Audio API...');
     const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-    const audioBuffer = await audioContext.decodeAudioData(fullArrayBuffer.slice(0));
+    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer.slice(0));
     console.log("Sample rate:", audioBuffer.sampleRate);
     console.log("Duration:", audioBuffer.duration);
     
     // Run transcription with word-level timestamps
-    console.log('🎯 Running transcription on processed audio...');
-    const result = await transcriber(fullArrayBuffer, {
+    console.log('🎯 Running transcription on audio...');
+    const result = await transcriber(arrayBuffer, {
       return_timestamps: 'word',
       chunk_length_s: 30,
       stride_length_s: 5,

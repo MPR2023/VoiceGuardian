@@ -1,8 +1,7 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { FileText, Loader2, Shield, AlertTriangle, Flag, Mic, MicOff, RefreshCw, Globe, Monitor, Wifi, WifiOff } from 'lucide-react';
+import { FileText, Loader2, Shield, AlertTriangle, Flag, Mic, MicOff, Globe, Monitor, Wifi, WifiOff } from 'lucide-react';
 import { transcribeAudio, transcribeWithWebSpeech, TranscriptionResult } from '../lib/transcribe';
 import { moderateTranscript } from '../lib/moderate';
-import { getFormatDisplayName } from '../utils/audioConversion';
 import { useAudioStore } from '../store/useAudioStore';
 
 interface WaveformProps {
@@ -606,12 +605,12 @@ const Waveform: React.FC<WaveformProps> = ({ audio }) => {
       {/* Audio Format Info */}
       <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
         <div className="flex items-center gap-2 text-gray-700 mb-1">
-          <RefreshCw className="h-4 w-4" />
-          <span className="font-medium text-sm">Audio Processing</span>
+          <FileText className="h-4 w-4" />
+          <span className="font-medium text-sm">Audio File</span>
         </div>
         <p className="text-sm text-gray-600">
-          Audio format: {getFormatDisplayName(audio.blob.type)} • 
-          All audio is automatically converted to WAV before transcription for optimal compatibility.
+          Audio format: {audio.blob.type || 'Unknown'} • 
+          Size: {(audio.blob.size / (1024 * 1024)).toFixed(2)} MB
         </p>
       </div>
 
