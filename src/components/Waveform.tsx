@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { FileText, Loader2, Shield, AlertTriangle, Flag, Mic, MicOff, RefreshCw, Globe, Monitor } from 'lucide-react';
+import { FileText, Loader2, Shield, AlertTriangle, Flag, Mic, MicOff, RefreshCw, Globe, Monitor, Wifi, WifiOff } from 'lucide-react';
 import { transcribeAudio, transcribeWithWebSpeech, TranscriptionResult } from '../lib/transcribe';
 import { moderateTranscript } from '../lib/moderate';
 import { getFormatDisplayName } from '../utils/audioConversion';
@@ -29,6 +29,8 @@ const Waveform: React.FC<WaveformProps> = ({ audio }) => {
   const [isListeningForSpeech, setIsListeningForSpeech] = useState(false);
   const [isUsingKeywordModeration, setIsUsingKeywordModeration] = useState(false);
   const [transcriptionMode, setTranscriptionMode] = useState<'server' | 'browser'>('server');
+  const [transcriptionError, setTranscriptionError] = useState<string | null>(null);
+  const [transcriptionStatus, setTranscriptionStatus] = useState<string>('');
 
   const { settings } = useAudioStore();
 
@@ -165,6 +167,8 @@ const Waveform: React.FC<WaveformProps> = ({ audio }) => {
 
     setIsTranscribing(true);
     setIsUsingWebSpeech(false);
+    setTranscriptionError(null);
+    setTranscriptionStatus('');
     
     // Determine which mode to use based on settings
     let useServer = settings.preferServerTranscription;
@@ -184,15 +188,42 @@ const Waveform: React.FC<WaveformProps> = ({ audio }) => {
     const mode = useServer ? 'server' : 'browser';
     setTranscriptionMode(mode);
     
+    if (mode === 'server') {
+      setTranscriptionStatus('Connecting to transcription server...');
+    } else {
+      setTranscriptionStatus('Loading AI models in browser...');
+    }
+    
     try {
       console.log(`🎯 Using ${mode} transcription based on settings`);
+      
+      if (mode === 'server') {
+        setTranscriptionStatus('Transcribing on server...');
+      } else {
+        setTranscriptionStatus('Processing with browser AI...');
+      }
+      
       const result = await transcribeAudio(audio.blob, useServer);
       setTranscription(result);
       // Clear previous moderation results when new transcription is done
       setFlaggedWords([]);
       setIsUsingKeywordModeration(false);
+      setTranscriptionStatus('');
     } catch (error) {
       console.error(`${mode} Transcription Error:`, error);
+      
+      // Set user-friendly error message
+      if (mode === 'server') {
+        if (error instanceof Error && error.message.includes('fetch')) {
+          setTranscriptionError('Could not reach transcription server. Please check your internet connection and try again later.');
+        } else if (error instanceof Error && error.message.includes('API error')) {
+          setTranscriptionError('Transcription server is temporarily unavailable. Please try again later.');
+        } else {
+          setTranscriptionError('Server transcription failed. The system will automatically try browser transcription as backup.');
+        }
+      } else {
+        setTranscriptionError('Browser AI transcription failed. Please try the server option or live speech recognition.');
+      }
       
       // If server failed and we haven't tried browser yet, offer browser as fallback
       if (mode === 'server') {
@@ -204,12 +235,16 @@ const Waveform: React.FC<WaveformProps> = ({ audio }) => {
         if (tryBrowser) {
           try {
             setTranscriptionMode('browser');
+            setTranscriptionError(null);
+            setTranscriptionStatus('Loading browser AI models...');
             const result = await transcribeAudio(audio.blob, false);
             setTranscription(result);
             setFlaggedWords([]);
             setIsUsingKeywordModeration(false);
+            setTranscriptionStatus('');
           } catch (browserError) {
             console.error('Browser transcription also failed:', browserError);
+            setTranscriptionError('Browser AI transcription also failed. Please try live speech recognition.');
             
             // Final fallback to Web Speech API
             const useWebSpeech = confirm(
@@ -222,6 +257,7 @@ const Waveform: React.FC<WaveformProps> = ({ audio }) => {
                 await handleWebSpeechTranscribe();
               } catch (webSpeechError) {
                 console.error('Web Speech transcription also failed:', webSpeechError);
+                setTranscriptionError('All transcription methods failed. Please check your audio file and try again.');
               }
             }
           }
@@ -238,11 +274,13 @@ const Waveform: React.FC<WaveformProps> = ({ audio }) => {
             await handleWebSpeechTranscribe();
           } catch (webSpeechError) {
             console.error('Web Speech transcription also failed:', webSpeechError);
+            setTranscriptionError('All transcription methods failed. Please check your audio file and try again.');
           }
         }
       }
     } finally {
       setIsTranscribing(false);
+      setTranscriptionStatus('');
     }
   };
 
@@ -254,19 +292,32 @@ const Waveform: React.FC<WaveformProps> = ({ audio }) => {
     setIsTranscribing(true);
     setIsUsingWebSpeech(false);
     setTranscriptionMode('server');
+    setTranscriptionError(null);
+    setTranscriptionStatus('Connecting to transcription server...');
     
     try {
       console.log('🌐 Using server transcription');
+      setTranscriptionStatus('Transcribing on server...');
       const result = await transcribeAudio(audio.blob, true); // Use server
       setTranscription(result);
       // Clear previous moderation results when new transcription is done
       setFlaggedWords([]);
       setIsUsingKeywordModeration(false);
+      setTranscriptionStatus('');
     } catch (error) {
       console.error('Server Transcription Error:', error);
-      alert(`Server transcription failed: ${error instanceof Error ? error.message : 'Unknown error'}. The system automatically fell back to browser transcription if available.`);
+      
+      // Set user-friendly error message
+      if (error instanceof Error && error.message.includes('fetch')) {
+        setTranscriptionError('Could not reach transcription server. Please check your internet connection and try again later.');
+      } else if (error instanceof Error && error.message.includes('API error')) {
+        setTranscriptionError('Transcription server is temporarily unavailable. Please try again later.');
+      } else {
+        setTranscriptionError('Server transcription failed. Please try browser transcription or live speech recognition.');
+      }
     } finally {
       setIsTranscribing(false);
+      setTranscriptionStatus('');
     }
   };
 
@@ -278,16 +329,21 @@ const Waveform: React.FC<WaveformProps> = ({ audio }) => {
     setIsTranscribing(true);
     setIsUsingWebSpeech(false);
     setTranscriptionMode('browser');
+    setTranscriptionError(null);
+    setTranscriptionStatus('Loading AI models in browser...');
     
     try {
       console.log('🖥️ Using browser transcription');
+      setTranscriptionStatus('Processing with browser AI...');
       const result = await transcribeAudio(audio.blob, false); // Use browser
       setTranscription(result);
       // Clear previous moderation results when new transcription is done
       setFlaggedWords([]);
       setIsUsingKeywordModeration(false);
+      setTranscriptionStatus('');
     } catch (error) {
       console.error('Browser Transcription Error:', error);
+      setTranscriptionError('Browser AI transcription failed. Please try server transcription or live speech recognition.');
       
       // Check if Web Speech API is available as fallback
       const SpeechRecognition = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -306,11 +362,10 @@ const Waveform: React.FC<WaveformProps> = ({ audio }) => {
             console.error('Web Speech transcription also failed:', webSpeechError);
           }
         }
-      } else {
-        alert(`Browser transcription failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
     } finally {
       setIsTranscribing(false);
+      setTranscriptionStatus('');
     }
   };
 
@@ -320,6 +375,7 @@ const Waveform: React.FC<WaveformProps> = ({ audio }) => {
     setIsListeningForSpeech(true);
     setIsUsingWebSpeech(true);
     setTranscriptionMode('browser');
+    setTranscriptionError(null);
     
     try {
       const result = await transcribeWithWebSpeech();
@@ -335,7 +391,7 @@ const Waveform: React.FC<WaveformProps> = ({ audio }) => {
       setIsUsingKeywordModeration(false);
     } catch (error) {
       console.error('Web Speech transcription failed:', error);
-      alert(`Speech recognition failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setTranscriptionError(`Live speech recognition failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsListeningForSpeech(false);
     }
@@ -401,7 +457,7 @@ const Waveform: React.FC<WaveformProps> = ({ audio }) => {
           {isTranscribing ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
-              Transcribing...
+              {transcriptionMode === 'server' ? 'Server...' : 'Browser...'}
             </>
           ) : (
             <>
@@ -499,6 +555,54 @@ const Waveform: React.FC<WaveformProps> = ({ audio }) => {
         </span>
       </div>
 
+      {/* Transcription Status */}
+      {isTranscribing && transcriptionStatus && (
+        <div className={`rounded-lg p-4 border ${
+          transcriptionMode === 'server' 
+            ? 'bg-green-50 border-green-200' 
+            : 'bg-purple-50 border-purple-200'
+        }`}>
+          <div className={`flex items-center gap-3 ${
+            transcriptionMode === 'server' ? 'text-green-700' : 'text-purple-700'
+          }`}>
+            <div className="flex items-center gap-2">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              {transcriptionMode === 'server' ? (
+                <Wifi className="h-5 w-5" />
+              ) : (
+                <Monitor className="h-5 w-5" />
+              )}
+            </div>
+            <div>
+              <p className="font-medium text-sm md:text-base">
+                {transcriptionMode === 'server' ? 'Server Transcription' : 'Browser Transcription'}
+              </p>
+              <p className={`text-sm ${
+                transcriptionMode === 'server' ? 'text-green-600' : 'text-purple-600'
+              }`}>
+                {transcriptionStatus}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Transcription Error */}
+      {transcriptionError && (
+        <div className="bg-red-50 rounded-lg p-4 border border-red-200">
+          <div className="flex items-center gap-3 text-red-700">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5" />
+              <WifiOff className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="font-medium text-sm md:text-base">Transcription Failed</p>
+              <p className="text-sm text-red-600">{transcriptionError}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Audio Format Info */}
       <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
         <div className="flex items-center gap-2 text-gray-700 mb-1">
@@ -512,7 +616,7 @@ const Waveform: React.FC<WaveformProps> = ({ audio }) => {
       </div>
 
       {/* Settings Info */}
-      {(settings.preferServerTranscription || settings.preferBrowserTranscription) && (
+      {(settings.preferServerTranscription || settings.preferBrowserTranscription) && !transcriptionError && (
         <div className={`rounded-lg p-3 border ${
           settings.preferServerTranscription 
             ? 'bg-green-50 border-green-200' 
@@ -540,7 +644,7 @@ const Waveform: React.FC<WaveformProps> = ({ audio }) => {
       )}
 
       {/* Transcription Mode Info */}
-      {transcription && (
+      {transcription && !transcriptionError && (
         <div className={`rounded-lg p-3 border ${
           transcriptionMode === 'server' 
             ? 'bg-blue-50 border-blue-200' 
