@@ -14,6 +14,38 @@ export interface TranscriptionResult {
 
 let transcriber: any = null;
 
+export async function transcribeAudioServer(blob: Blob, model = "whisper-base"): Promise<string> {
+  const url = `${import.meta.env.VITE_TRANSCRIBE_API}?model=${model}`;
+  
+  console.log('🌐 Sending audio to transcription server:', url);
+  
+  try {
+    // Convert to WAV for optimal server compatibility
+    const conversionResult = await convertToWavIfNeeded(blob);
+    const audioBlob = conversionResult.blob;
+    
+    const formData = new FormData();
+    formData.append('audio', audioBlob, 'audio.wav');
+    
+    const res = await fetch(url, { 
+      method: 'POST', 
+      body: formData 
+    });
+    
+    if (!res.ok) {
+      throw new Error(`Transcription API error: ${res.status} ${res.statusText}`);
+    }
+    
+    const data = await res.json();
+    console.log('✅ Server transcription response:', data);
+    
+    return data.transcription?.text || data.text || "";
+  } catch (error) {
+    console.error('❌ Server transcription failed:', error);
+    throw new Error(`Server transcription failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
 export async function transcribeAudio(blob: Blob): Promise<TranscriptionResult> {
   console.log('🎤 Starting transcription with blob size:', blob.size);
   
