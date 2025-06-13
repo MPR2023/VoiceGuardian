@@ -25,7 +25,7 @@ function App() {
   const [processingError, setProcessingError] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
 
-  const { audioFiles, selectedFile, selectFile } = useAudioStore();
+  const { audioFiles, selectedFile, selectFile, settings } = useAudioStore();
 
   // Audio playback effect - used for FlaggedTimestamps component
   useEffect(() => {
@@ -65,10 +65,15 @@ function App() {
         setWaveformData(waveform);
         console.log('✅ Waveform generated:', { duration: waveform.duration, peaks: waveform.peaks.length });
 
-        // 2️⃣ Transcribe audio
+        // 2️⃣ Transcribe audio using settings preference
         setProcessingStep('Transcribing audio with AI...');
         console.log('🎤 Starting transcription...');
-        const transcriptionResult = await transcribeAudio(selectedFile.blob);
+        
+        // Use settings to determine transcription mode
+        const useServer = settings.preferServerTranscription && !settings.preferBrowserTranscription;
+        console.log('🎯 Using transcription mode:', useServer ? 'server' : 'browser', 'based on settings');
+        
+        const transcriptionResult = await transcribeAudio(selectedFile.blob, useServer);
         console.log('✅ Transcription complete:', { 
           text: transcriptionResult.text.substring(0, 100) + '...', 
           wordCount: transcriptionResult.words.length 
@@ -150,7 +155,7 @@ function App() {
     };
 
     processFile();
-  }, [selectedFile]);
+  }, [selectedFile, settings.preferServerTranscription, settings.preferBrowserTranscription]);
 
   // Close sidebar when clicking outside on mobile
   useEffect(() => {

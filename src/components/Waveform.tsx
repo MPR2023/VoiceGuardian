@@ -157,6 +157,95 @@ const Waveform: React.FC<WaveformProps> = ({ audio }) => {
     }
   };
 
+  // Smart transcription function that respects user settings
+  const handleSmartTranscribe = async () => {
+    console.log("Smart Transcribe button clicked");
+    
+    if (isTranscribing) return;
+
+    setIsTranscribing(true);
+    setIsUsingWebSpeech(false);
+    
+    // Determine which mode to use based on settings
+    let useServer = settings.preferServerTranscription;
+    let useBrowser = settings.preferBrowserTranscription;
+    
+    // If both are enabled, prefer server
+    if (useServer && useBrowser) {
+      useServer = true;
+      useBrowser = false;
+    }
+    
+    // If neither is enabled, default to server
+    if (!useServer && !useBrowser) {
+      useServer = true;
+    }
+    
+    const mode = useServer ? 'server' : 'browser';
+    setTranscriptionMode(mode);
+    
+    try {
+      console.log(`🎯 Using ${mode} transcription based on settings`);
+      const result = await transcribeAudio(audio.blob, useServer);
+      setTranscription(result);
+      // Clear previous moderation results when new transcription is done
+      setFlaggedWords([]);
+      setIsUsingKeywordModeration(false);
+    } catch (error) {
+      console.error(`${mode} Transcription Error:`, error);
+      
+      // If server failed and we haven't tried browser yet, offer browser as fallback
+      if (mode === 'server') {
+        const tryBrowser = confirm(
+          'Server transcription failed. Would you like to try browser-based AI transcription instead? ' +
+          'Note: This will download AI models to your browser and may take longer.'
+        );
+        
+        if (tryBrowser) {
+          try {
+            setTranscriptionMode('browser');
+            const result = await transcribeAudio(audio.blob, false);
+            setTranscription(result);
+            setFlaggedWords([]);
+            setIsUsingKeywordModeration(false);
+          } catch (browserError) {
+            console.error('Browser transcription also failed:', browserError);
+            
+            // Final fallback to Web Speech API
+            const useWebSpeech = confirm(
+              'Browser AI transcription also failed. Would you like to try live speech recognition instead? ' +
+              'Note: This requires speaking into your microphone and may be less accurate.'
+            );
+            
+            if (useWebSpeech) {
+              try {
+                await handleWebSpeechTranscribe();
+              } catch (webSpeechError) {
+                console.error('Web Speech transcription also failed:', webSpeechError);
+              }
+            }
+          }
+        }
+      } else {
+        // Browser mode failed, offer Web Speech API
+        const useWebSpeech = confirm(
+          'Browser AI transcription failed. Would you like to try live speech recognition instead? ' +
+          'Note: This requires speaking into your microphone and may be less accurate.'
+        );
+        
+        if (useWebSpeech) {
+          try {
+            await handleWebSpeechTranscribe();
+          } catch (webSpeechError) {
+            console.error('Web Speech transcription also failed:', webSpeechError);
+          }
+        }
+      }
+    } finally {
+      setIsTranscribing(false);
+    }
+  };
+
   const handleServerTranscribe = async () => {
     console.log("Server Transcribe button clicked");
     
@@ -303,24 +392,51 @@ const Waveform: React.FC<WaveformProps> = ({ audio }) => {
           {isPlaying ? 'Pause' : 'Play'}
         </button>
         
+        {/* Smart Transcribe Button - Uses settings preference */}
         <button
-          onClick={handleServerTranscribe}
+          onClick={handleSmartTranscribe}
           disabled={isTranscribing || isListeningForSpeech}
           className="flex items-center gap-2 rounded px-3 py-2 bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors min-h-[44px] text-sm md:text-base"
         >
-          {isTranscribing && transcriptionMode === 'server' ? (
+          {isTranscribing ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
-              Server Transcribing...
+              Transcribing...
             </>
           ) : (
             <>
-              <Globe className="h-4 w-4" />
-              Server Transcribe
+              <FileText className="h-4 w-4" />
+              AI Transcribe
+              {settings.preferServerTranscription && (
+                <span className="text-xs bg-blue-500 px-1 rounded">Server</span>
+              )}
+              {settings.preferBrowserTranscription && !settings.preferServerTranscription && (
+                <span className="text-xs bg-blue-500 px-1 rounded">Browser</span>
+              )}
             </>
           )}
         </button>
 
+        {/* Manual Server Transcribe Button */}
+        <button
+          onClick={handleServerTranscribe}
+          disabled={isTranscribing || isListeningForSpeech}
+          className="flex items-center gap-2 rounded px-3 py-2 bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors min-h-[44px] text-sm md:text-base"
+        >
+          {isTranscribing && transcriptionMode === 'server' ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Server...
+            </>
+          ) : (
+            <>
+              <Globe className="h-4 w-4" />
+              Server
+            </>
+          )}
+        </button>
+
+        {/* Manual Browser Transcribe Button */}
         <button
           onClick={handleBrowserTranscribe}
           disabled={isTranscribing || isListeningForSpeech}
@@ -329,20 +445,21 @@ const Waveform: React.FC<WaveformProps> = ({ audio }) => {
           {isTranscribing && transcriptionMode === 'browser' ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
-              Browser Transcribing...
+              Browser...
             </>
           ) : (
             <>
               <Monitor className="h-4 w-4" />
-              Browser Transcribe
+              Browser
             </>
           )}
         </button>
 
+        {/* Live Speech Button */}
         <button
           onClick={handleWebSpeechTranscribe}
           disabled={isTranscribing || isListeningForSpeech}
-          className="flex items-center gap-2 rounded px-3 py-2 bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors min-h-[44px] text-sm md:text-base"
+          className="flex items-center gap-2 rounded px-3 py-2 bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors min-h-[44px] text-sm md:text-base"
         >
           {isListeningForSpeech ? (
             <>
@@ -393,6 +510,34 @@ const Waveform: React.FC<WaveformProps> = ({ audio }) => {
           All audio is automatically converted to WAV before transcription for optimal compatibility.
         </p>
       </div>
+
+      {/* Settings Info */}
+      {(settings.preferServerTranscription || settings.preferBrowserTranscription) && (
+        <div className={`rounded-lg p-3 border ${
+          settings.preferServerTranscription 
+            ? 'bg-green-50 border-green-200' 
+            : 'bg-purple-50 border-purple-200'
+        }`}>
+          <div className={`flex items-center gap-2 mb-1 ${
+            settings.preferServerTranscription ? 'text-green-700' : 'text-purple-700'
+          }`}>
+            {settings.preferServerTranscription ? (
+              <Globe className="h-4 w-4" />
+            ) : (
+              <Monitor className="h-4 w-4" />
+            )}
+            <span className="font-medium text-sm">
+              Default Mode: {settings.preferServerTranscription ? 'AI (Server)' : 'AI (Browser)'}
+            </span>
+          </div>
+          <p className={`text-sm ${
+            settings.preferServerTranscription ? 'text-green-600' : 'text-purple-600'
+          }`}>
+            The "AI Transcribe" button will use {settings.preferServerTranscription ? 'server' : 'browser'} transcription by default. 
+            You can change this in Settings or use the manual buttons above.
+          </p>
+        </div>
+      )}
 
       {/* Transcription Mode Info */}
       {transcription && (

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Settings as SettingsIcon, Shield, Globe, HardDrive, Bell, Info, Mail, User, Wifi, Mic } from 'lucide-react';
+import { Settings as SettingsIcon, Shield, Globe, HardDrive, Bell, Info, Mail, User, Wifi, Mic, Monitor, Server } from 'lucide-react';
 import { useAudioStore } from '../store/useAudioStore';
 
 const Settings: React.FC = () => {
@@ -23,6 +23,10 @@ const Settings: React.FC = () => {
 
   const handleBrowserTranscriptionToggle = () => {
     updateSettings({ preferBrowserTranscription: !settings.preferBrowserTranscription });
+  };
+
+  const handleServerTranscriptionToggle = () => {
+    updateSettings({ preferServerTranscription: !settings.preferServerTranscription });
   };
 
   const ComingSoonBadge = () => (
@@ -69,7 +73,72 @@ const Settings: React.FC = () => {
       {/* Settings Sections */}
       <div className="space-y-4 md:space-y-6">
         
-        {/* 1. Transcription Preference */}
+        {/* 1. AI Transcription Mode */}
+        <div className="bg-white rounded-xl shadow-lg p-4 md:p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 space-y-3 sm:space-y-0">
+            <div className="flex items-center space-x-3">
+              <div className="bg-blue-100 p-2 md:p-3 rounded-lg">
+                <Server className="h-5 w-5 md:h-6 md:w-6 text-blue-600" />
+              </div>
+              <div>
+                <h3 className="text-base md:text-lg font-semibold text-gray-900">AI Transcription Mode</h3>
+                <p className="text-sm text-gray-600">Choose between server-based or browser-based AI transcription</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="ml-0 sm:ml-12 space-y-4">
+            {/* Server Transcription Toggle */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between space-y-3 sm:space-y-0 p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <div className="flex items-center space-x-3">
+                <Globe className="h-5 w-5 text-blue-600" />
+                <div>
+                  <p className="text-sm font-medium text-gray-900">AI (Server) - Default</p>
+                  <p className="text-xs text-gray-600">Fast, accurate transcription using remote AI servers</p>
+                </div>
+              </div>
+              <ToggleSwitch
+                enabled={settings.preferServerTranscription}
+                onChange={handleServerTranscriptionToggle}
+              />
+            </div>
+
+            {/* Browser Transcription Toggle */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between space-y-3 sm:space-y-0 p-4 bg-purple-50 rounded-lg border border-purple-200">
+              <div className="flex items-center space-x-3">
+                <Monitor className="h-5 w-5 text-purple-600" />
+                <div>
+                  <p className="text-sm font-medium text-gray-900">AI (Browser) - Privacy Mode</p>
+                  <p className="text-xs text-gray-600">Local AI processing with word-level timestamps</p>
+                </div>
+              </div>
+              <ToggleSwitch
+                enabled={settings.preferBrowserTranscription}
+                onChange={handleBrowserTranscriptionToggle}
+              />
+            </div>
+
+            {/* Current Mode Display */}
+            <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+              <p className="text-sm text-gray-700">
+                <strong>Current Mode:</strong> {
+                  settings.preferServerTranscription 
+                    ? 'AI (Server) - Fast transcription with automatic browser fallback'
+                    : settings.preferBrowserTranscription
+                    ? 'AI (Browser) - Privacy-focused with word timestamps'
+                    : 'Manual selection required for each transcription'
+                }
+              </p>
+              {!settings.preferServerTranscription && !settings.preferBrowserTranscription && (
+                <p className="text-xs text-yellow-600 mt-1">
+                  ⚠️ No default mode selected. You'll need to choose manually each time.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* 2. Live Speech Recognition */}
         <div className="bg-white rounded-xl shadow-lg p-4 md:p-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 space-y-3 sm:space-y-0">
             <div className="flex items-center space-x-3">
@@ -77,29 +146,23 @@ const Settings: React.FC = () => {
                 <Mic className="h-5 w-5 md:h-6 md:w-6 text-green-600" />
               </div>
               <div>
-                <h3 className="text-base md:text-lg font-semibold text-gray-900">Prefer Browser Transcription</h3>
-                <p className="text-sm text-gray-600">Use browser-based speech recognition instead of AI models</p>
+                <h3 className="text-base md:text-lg font-semibold text-gray-900">Live Speech Recognition</h3>
+                <p className="text-sm text-gray-600">Real-time microphone transcription (always available)</p>
               </div>
             </div>
           </div>
           
-          <div className="ml-0 sm:ml-12 flex flex-col sm:flex-row sm:items-center justify-between space-y-3 sm:space-y-0">
-            <div>
-              <p className="text-sm text-gray-700 mb-1">
-                {settings.preferBrowserTranscription ? 'Browser transcription preferred' : 'AI transcription preferred'}
-              </p>
-              <p className="text-xs text-gray-500">
-                Browser transcription is free and works offline, but may be less accurate than AI models
+          <div className="ml-0 sm:ml-12">
+            <div className="bg-green-50 rounded-lg p-4 border border-green-200">
+              <p className="text-sm text-green-700 leading-relaxed">
+                <strong>Live Speech Recognition</strong> is always available as a third option alongside AI transcription modes. 
+                It uses your browser's built-in speech recognition for real-time microphone input and works best in Chrome or Edge.
               </p>
             </div>
-            <ToggleSwitch
-              enabled={settings.preferBrowserTranscription}
-              onChange={handleBrowserTranscriptionToggle}
-            />
           </div>
         </div>
 
-        {/* 2. Moderation Strictness */}
+        {/* 3. Moderation Strictness */}
         <div className="bg-white rounded-xl shadow-lg p-4 md:p-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 space-y-3 sm:space-y-0">
             <div className="flex items-center space-x-3">
@@ -131,7 +194,7 @@ const Settings: React.FC = () => {
           </div>
         </div>
 
-        {/* 3. Preferred Language */}
+        {/* 4. Preferred Language */}
         <div className="bg-white rounded-xl shadow-lg p-4 md:p-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 space-y-3 sm:space-y-0">
             <div className="flex items-center space-x-3">
@@ -166,7 +229,7 @@ const Settings: React.FC = () => {
           </div>
         </div>
 
-        {/* 4. Audio Retention */}
+        {/* 5. Audio Retention */}
         <div className="bg-white rounded-xl shadow-lg p-4 md:p-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 space-y-3 sm:space-y-0">
             <div className="flex items-center space-x-3">
@@ -198,7 +261,7 @@ const Settings: React.FC = () => {
           </div>
         </div>
 
-        {/* 5. Notification Preferences */}
+        {/* 6. Notification Preferences */}
         <div className="bg-white rounded-xl shadow-lg p-4 md:p-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 space-y-3 sm:space-y-0">
             <div className="flex items-center space-x-3">
@@ -230,40 +293,59 @@ const Settings: React.FC = () => {
           </div>
         </div>
 
-        {/* 6. AI Features Notice */}
+        {/* 7. AI Features Notice */}
         <div className="bg-blue-50 rounded-xl shadow-lg p-4 md:p-6 border border-blue-200">
           <div className="flex items-center space-x-3 mb-4">
             <div className="bg-blue-100 p-2 md:p-3 rounded-lg">
               <Wifi className="h-5 w-5 md:h-6 md:w-6 text-blue-600" />
             </div>
             <div>
-              <h3 className="text-base md:text-lg font-semibold text-gray-900">AI Features & Browser Transcription</h3>
-              <p className="text-sm text-gray-600">Important information about transcription options</p>
+              <h3 className="text-base md:text-lg font-semibold text-gray-900">AI Transcription Options</h3>
+              <p className="text-sm text-gray-600">Understanding your transcription choices</p>
             </div>
           </div>
           
           <div className="ml-0 sm:ml-12 space-y-3">
             <div className="bg-white rounded-lg p-4 border border-blue-200">
+              <div className="flex items-center gap-2 mb-2">
+                <Globe className="h-4 w-4 text-blue-600" />
+                <strong className="text-sm text-gray-700">AI (Server) Transcription:</strong>
+              </div>
               <p className="text-sm text-gray-700 leading-relaxed">
-                <strong>AI Transcription:</strong> Requires internet connectivity for model downloads. Models are cached in your browser after first use. 
-                Provides word-level timestamps and higher accuracy.
+                Uses remote AI servers for fast, high-accuracy transcription. Requires internet connectivity. 
+                Automatically falls back to browser AI if server is unavailable. No word-level timestamps.
+              </p>
+            </div>
+            <div className="bg-white rounded-lg p-4 border border-purple-200">
+              <div className="flex items-center gap-2 mb-2">
+                <Monitor className="h-4 w-4 text-purple-600" />
+                <strong className="text-sm text-gray-700">AI (Browser) Transcription:</strong>
+              </div>
+              <p className="text-sm text-gray-700 leading-relaxed">
+                Uses local AI models downloaded to your browser. Provides word-level timestamps and waveform markers. 
+                Fully private - no data leaves your device. Requires initial model download.
               </p>
             </div>
             <div className="bg-white rounded-lg p-4 border border-green-200">
+              <div className="flex items-center gap-2 mb-2">
+                <Mic className="h-4 w-4 text-green-600" />
+                <strong className="text-sm text-gray-700">Live Speech Recognition:</strong>
+              </div>
               <p className="text-sm text-gray-700 leading-relaxed">
-                <strong>Browser Transcription:</strong> Uses built-in speech recognition and is fully free. Works offline but requires microphone input. 
-                May be less accurate than AI models. Works best in Chrome or Edge.
+                Real-time microphone transcription using browser's built-in speech recognition. 
+                Works offline but requires speaking into microphone. Best in Chrome or Edge.
               </p>
             </div>
             <div className="bg-white rounded-lg p-4 border border-blue-200">
               <p className="text-sm text-gray-700 leading-relaxed">
-                <strong>Privacy:</strong> All processing happens locally in your browser. No audio data is transmitted to external servers.
+                <strong>Privacy:</strong> All processing happens locally in your browser when using Browser AI or Live Speech. 
+                Server AI sends audio to remote servers for processing but provides faster results.
               </p>
             </div>
           </div>
         </div>
 
-        {/* 7. About Section */}
+        {/* 8. About Section */}
         <div className="bg-white rounded-xl shadow-lg p-4 md:p-6">
           <div className="flex items-center space-x-3 mb-4 md:mb-6">
             <div className="bg-gray-100 p-2 md:p-3 rounded-lg">
@@ -317,9 +399,8 @@ const Settings: React.FC = () => {
             
             <div className="pt-4 border-t border-gray-200">
               <p className="text-xs text-gray-500 leading-relaxed">
-                Voice Guardian uses advanced AI models for speech recognition and content moderation, with browser-based transcription as a fallback option. 
-                All processing is done locally in your browser for maximum privacy and security. 
-                No audio data is transmitted to external servers.
+                Voice Guardian offers multiple AI transcription options: server-based for speed, browser-based for privacy, 
+                and live speech recognition for real-time input. All processing can be done locally for maximum privacy and security.
               </p>
             </div>
           </div>
