@@ -46,8 +46,8 @@ export async function transcribeAudioServer(blob: Blob, model = "whisper-base"):
   }
 }
 
-export async function transcribeAudio(blob: Blob): Promise<TranscriptionResult> {
-  console.log('🎤 Starting transcription with blob size:', blob.size);
+export async function transcribeAudioBrowser(blob: Blob): Promise<TranscriptionResult> {
+  console.log('🎤 Starting browser transcription with blob size:', blob.size);
   
   // UNIVERSAL CONVERSION: Always convert to WAV before sending to Whisper
   console.log('🔄 Ensuring audio is in WAV format for Whisper...');
@@ -137,15 +137,40 @@ export async function transcribeAudio(blob: Blob): Promise<TranscriptionResult> 
       }
     }
 
-    console.log('✅ Transcription complete:', { text: text.substring(0, 100) + '...', wordCount: words.length });
+    console.log('✅ Browser transcription complete:', { text: text.substring(0, 100) + '...', wordCount: words.length });
 
     return {
       words,
       text
     };
   } catch (error) {
-    console.error('❌ Full transcription error:', error);
+    console.error('❌ Full browser transcription error:', error);
     throw error;  // bubble up the real failure
+  }
+}
+
+// Main transcription function that uses server by default
+export async function transcribeAudio(blob: Blob, useServer = true): Promise<TranscriptionResult> {
+  if (useServer) {
+    try {
+      console.log('🌐 Attempting server transcription...');
+      const text = await transcribeAudioServer(blob);
+      
+      // Convert server response to TranscriptionResult format
+      // Note: Server transcription doesn't provide word-level timestamps
+      return {
+        text,
+        words: [] // Server transcription doesn't provide word timestamps
+      };
+    } catch (serverError) {
+      console.warn('❌ Server transcription failed, falling back to browser:', serverError);
+      
+      // Fallback to browser transcription
+      return await transcribeAudioBrowser(blob);
+    }
+  } else {
+    console.log('🖥️ Using browser transcription (privacy mode)');
+    return await transcribeAudioBrowser(blob);
   }
 }
 

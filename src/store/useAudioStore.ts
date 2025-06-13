@@ -19,6 +19,7 @@ interface Settings {
   keepFilesAfterModeration: boolean;
   enableNotifications: boolean;
   preferBrowserTranscription: boolean;
+  preferServerTranscription: boolean;
 }
 
 interface AudioStore {
@@ -47,6 +48,7 @@ const defaultSettings: Settings = {
   keepFilesAfterModeration: true,
   enableNotifications: true,
   preferBrowserTranscription: false,
+  preferServerTranscription: true,
 };
 
 export const useAudioStore = create<AudioStore>()(

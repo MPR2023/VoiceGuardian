@@ -1,8 +1,9 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { FileText, Loader2, Shield, AlertTriangle, Flag, Mic, MicOff, RefreshCw } from 'lucide-react';
+import { FileText, Loader2, Shield, AlertTriangle, Flag, Mic, MicOff, RefreshCw, Globe, Monitor } from 'lucide-react';
 import { transcribeAudio, transcribeWithWebSpeech, TranscriptionResult } from '../lib/transcribe';
 import { moderateTranscript } from '../lib/moderate';
 import { getFormatDisplayName } from '../utils/audioConversion';
+import { useAudioStore } from '../store/useAudioStore';
 
 interface WaveformProps {
   audio: { id: string; blob: Blob };
@@ -27,6 +28,9 @@ const Waveform: React.FC<WaveformProps> = ({ audio }) => {
   const [isUsingWebSpeech, setIsUsingWebSpeech] = useState(false);
   const [isListeningForSpeech, setIsListeningForSpeech] = useState(false);
   const [isUsingKeywordModeration, setIsUsingKeywordModeration] = useState(false);
+  const [transcriptionMode, setTranscriptionMode] = useState<'server' | 'browser'>('server');
+
+  const { settings } = useAudioStore();
 
   useEffect(() => {
     const initWaveSurfer = async () => {
@@ -106,8 +110,8 @@ const Waveform: React.FC<WaveformProps> = ({ audio }) => {
 
       container.style.position = 'relative';
 
-      // Add word markers (only for AI transcription with timestamps)
-      if (transcription?.words && transcription.words.length > 0 && !isUsingWebSpeech) {
+      // Add word markers (only for browser transcription with timestamps)
+      if (transcription?.words && transcription.words.length > 0 && transcriptionMode === 'browser') {
         transcription.words.forEach((word) => {
           if (word.start >= 0 && word.start <= duration) {
             const marker = document.createElement('div');
@@ -120,7 +124,7 @@ const Waveform: React.FC<WaveformProps> = ({ audio }) => {
       }
 
       // Add flagged regions (only if we have timing information)
-      if (flaggedWords.length > 0 && !isUsingWebSpeech) {
+      if (flaggedWords.length > 0 && transcriptionMode === 'browser') {
         flaggedWords.forEach((flagged) => {
           if (flagged.start >= 0 && flagged.start <= duration) {
             const region = document.createElement('div');
@@ -145,7 +149,7 @@ const Waveform: React.FC<WaveformProps> = ({ audio }) => {
     } catch (error) {
       console.error('Error adding markers and regions:', error);
     }
-  }, [transcription, flaggedWords, duration, isUsingWebSpeech]);
+  }, [transcription, flaggedWords, duration, transcriptionMode]);
 
   const togglePlay = () => {
     if (wavesurferRef.current) {
@@ -153,25 +157,48 @@ const Waveform: React.FC<WaveformProps> = ({ audio }) => {
     }
   };
 
-  const handleTranscribe = async () => {
-    console.log("AI Transcribe button clicked");
+  const handleServerTranscribe = async () => {
+    console.log("Server Transcribe button clicked");
     
     if (isTranscribing) return;
 
     setIsTranscribing(true);
     setIsUsingWebSpeech(false);
+    setTranscriptionMode('server');
     
     try {
-      // Note: Audio conversion now happens inside transcribeAudio()
-      // No need to convert here as it's handled universally in the transcribe function
-      console.log('🎯 Sending audio to transcription (conversion handled internally)');
-      const result = await transcribeAudio(audio.blob);
+      console.log('🌐 Using server transcription');
+      const result = await transcribeAudio(audio.blob, true); // Use server
       setTranscription(result);
       // Clear previous moderation results when new transcription is done
       setFlaggedWords([]);
       setIsUsingKeywordModeration(false);
     } catch (error) {
-      console.error('Transcription Error:', error);
+      console.error('Server Transcription Error:', error);
+      alert(`Server transcription failed: ${error instanceof Error ? error.message : 'Unknown error'}. The system automatically fell back to browser transcription if available.`);
+    } finally {
+      setIsTranscribing(false);
+    }
+  };
+
+  const handleBrowserTranscribe = async () => {
+    console.log("Browser Transcribe button clicked");
+    
+    if (isTranscribing) return;
+
+    setIsTranscribing(true);
+    setIsUsingWebSpeech(false);
+    setTranscriptionMode('browser');
+    
+    try {
+      console.log('🖥️ Using browser transcription');
+      const result = await transcribeAudio(audio.blob, false); // Use browser
+      setTranscription(result);
+      // Clear previous moderation results when new transcription is done
+      setFlaggedWords([]);
+      setIsUsingKeywordModeration(false);
+    } catch (error) {
+      console.error('Browser Transcription Error:', error);
       
       // Check if Web Speech API is available as fallback
       const SpeechRecognition = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -179,7 +206,7 @@ const Waveform: React.FC<WaveformProps> = ({ audio }) => {
       if (SpeechRecognition) {
         // Offer Web Speech API as fallback
         const useWebSpeech = confirm(
-          'AI transcription failed. Would you like to try browser-based transcription instead? ' +
+          'Browser AI transcription failed. Would you like to try browser-based speech recognition instead? ' +
           'Note: This requires speaking into your microphone and may be less accurate.'
         );
         
@@ -190,6 +217,8 @@ const Waveform: React.FC<WaveformProps> = ({ audio }) => {
             console.error('Web Speech transcription also failed:', webSpeechError);
           }
         }
+      } else {
+        alert(`Browser transcription failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
     } finally {
       setIsTranscribing(false);
@@ -201,6 +230,7 @@ const Waveform: React.FC<WaveformProps> = ({ audio }) => {
 
     setIsListeningForSpeech(true);
     setIsUsingWebSpeech(true);
+    setTranscriptionMode('browser');
     
     try {
       const result = await transcribeWithWebSpeech();
@@ -274,19 +304,37 @@ const Waveform: React.FC<WaveformProps> = ({ audio }) => {
         </button>
         
         <button
-          onClick={handleTranscribe}
+          onClick={handleServerTranscribe}
           disabled={isTranscribing || isListeningForSpeech}
           className="flex items-center gap-2 rounded px-3 py-2 bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors min-h-[44px] text-sm md:text-base"
         >
-          {isTranscribing ? (
+          {isTranscribing && transcriptionMode === 'server' ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
-              Transcribing...
+              Server Transcribing...
             </>
           ) : (
             <>
-              <FileText className="h-4 w-4" />
-              AI Transcribe
+              <Globe className="h-4 w-4" />
+              Server Transcribe
+            </>
+          )}
+        </button>
+
+        <button
+          onClick={handleBrowserTranscribe}
+          disabled={isTranscribing || isListeningForSpeech}
+          className="flex items-center gap-2 rounded px-3 py-2 bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors min-h-[44px] text-sm md:text-base"
+        >
+          {isTranscribing && transcriptionMode === 'browser' ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Browser Transcribing...
+            </>
+          ) : (
+            <>
+              <Monitor className="h-4 w-4" />
+              Browser Transcribe
             </>
           )}
         </button>
@@ -304,7 +352,7 @@ const Waveform: React.FC<WaveformProps> = ({ audio }) => {
           ) : (
             <>
               <Mic className="h-4 w-4" />
-              Browser Transcribe
+              Live Speech
             </>
           )}
         </button>
@@ -313,7 +361,7 @@ const Waveform: React.FC<WaveformProps> = ({ audio }) => {
           <button
             onClick={handleModerate}
             disabled={isModerating}
-            className="flex items-center gap-2 rounded px-3 py-2 bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors min-h-[44px] text-sm md:text-base"
+            className="flex items-center gap-2 rounded px-3 py-2 bg-orange-600 text-white hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors min-h-[44px] text-sm md:text-base"
           >
             {isModerating ? (
               <>
@@ -342,9 +390,39 @@ const Waveform: React.FC<WaveformProps> = ({ audio }) => {
         </div>
         <p className="text-sm text-gray-600">
           Audio format: {getFormatDisplayName(audio.blob.type)} • 
-          All audio is automatically converted to WAV before AI transcription for optimal compatibility.
+          All audio is automatically converted to WAV before transcription for optimal compatibility.
         </p>
       </div>
+
+      {/* Transcription Mode Info */}
+      {transcription && (
+        <div className={`rounded-lg p-3 border ${
+          transcriptionMode === 'server' 
+            ? 'bg-blue-50 border-blue-200' 
+            : 'bg-purple-50 border-purple-200'
+        }`}>
+          <div className={`flex items-center gap-2 mb-1 ${
+            transcriptionMode === 'server' ? 'text-blue-700' : 'text-purple-700'
+          }`}>
+            {transcriptionMode === 'server' ? (
+              <Globe className="h-4 w-4" />
+            ) : (
+              <Monitor className="h-4 w-4" />
+            )}
+            <span className="font-medium text-sm">
+              {transcriptionMode === 'server' ? 'Server Transcription Active' : 'Browser Transcription Active'}
+            </span>
+          </div>
+          <p className={`text-sm ${
+            transcriptionMode === 'server' ? 'text-blue-600' : 'text-purple-600'
+          }`}>
+            {transcriptionMode === 'server' 
+              ? 'Using remote AI server for high-accuracy transcription with automatic fallback to browser if needed.'
+              : 'Using local browser AI models for privacy-focused transcription with word-level timestamps.'
+            }
+          </p>
+        </div>
+      )}
 
       {/* Keyword Moderation Notice */}
       {isUsingKeywordModeration && (
@@ -364,10 +442,10 @@ const Waveform: React.FC<WaveformProps> = ({ audio }) => {
         <div className="bg-green-50 rounded-lg p-3 md:p-4 border border-green-200">
           <div className="flex items-center gap-2 text-green-700 mb-2">
             <Mic className="h-5 w-5" />
-            <span className="font-medium text-sm md:text-base">Browser-based Transcription Active</span>
+            <span className="font-medium text-sm md:text-base">Live Speech Recognition Active</span>
           </div>
           <p className="text-sm text-green-600">
-            Running browser-native transcription (accuracy may vary). Browser-based transcription uses built-in speech recognition and is fully free, but may be less accurate. Works best in Chrome or Edge.
+            Running browser-native speech recognition (accuracy may vary). Live speech recognition uses built-in speech recognition and is fully free, but may be less accurate. Works best in Chrome or Edge.
           </p>
         </div>
       )}
@@ -391,9 +469,9 @@ const Waveform: React.FC<WaveformProps> = ({ audio }) => {
           <div className="flex items-center gap-2">
             <FileText className="h-5 w-5 text-blue-600" />
             <h4 className="font-semibold text-gray-900 text-sm md:text-base">
-              Transcription {isUsingWebSpeech ? '(Browser-based)' : '(AI-powered)'}
+              Transcription {isUsingWebSpeech ? '(Live Speech)' : transcriptionMode === 'server' ? '(Server AI)' : '(Browser AI)'}
             </h4>
-            {!isUsingWebSpeech && (
+            {!isUsingWebSpeech && transcriptionMode === 'browser' && (
               <span className="text-sm text-gray-500">
                 ({transcription.words.length} words)
               </span>
@@ -406,15 +484,15 @@ const Waveform: React.FC<WaveformProps> = ({ audio }) => {
             </p>
           </div>
           
-          {transcription.words.length > 0 && !isUsingWebSpeech && (
+          {transcription.words.length > 0 && !isUsingWebSpeech && transcriptionMode === 'browser' && (
             <div className="text-xs text-gray-500">
               💡 Yellow markers on the waveform show word positions
             </div>
           )}
           
-          {isUsingWebSpeech && (
+          {(isUsingWebSpeech || transcriptionMode === 'server') && (
             <div className="text-xs text-gray-500">
-              ℹ️ Browser-based transcription doesn't provide word timing information
+              ℹ️ {isUsingWebSpeech ? 'Live speech recognition' : 'Server transcription'} doesn't provide word timing information
             </div>
           )}
         </div>
@@ -451,7 +529,7 @@ const Waveform: React.FC<WaveformProps> = ({ audio }) => {
                     </span>
                   </div>
                   <div className="text-sm">
-                    {!isUsingWebSpeech && typeof flagged.start === 'number' && formatTime(flagged.start)} • {Math.round((flagged.score || 0.8) * 100)}%
+                    {!isUsingWebSpeech && transcriptionMode === 'browser' && typeof flagged.start === 'number' && formatTime(flagged.start)} • {Math.round((flagged.score || 0.8) * 100)}%
                   </div>
                 </div>
                 {flagged.context && (
@@ -463,7 +541,7 @@ const Waveform: React.FC<WaveformProps> = ({ audio }) => {
             ))}
           </div>
           
-          {!isUsingWebSpeech && (
+          {!isUsingWebSpeech && transcriptionMode === 'browser' && (
             <div className="text-xs text-gray-600">
               🔴 Red regions = toxic/hate speech • 🟡 Yellow regions = warnings/profanity
             </div>
